@@ -2,6 +2,20 @@ const getWorkspaceId = (): string | null => localStorage.getItem('workspaceId')
 
 const getToken = (): string | null => localStorage.getItem('accessToken')
 
+/**
+ * Собирает URL запроса к API.
+ * `baseUrl` — для тестов; в приложении не передаётся (берётся `import.meta.env.VITE_API_BASE_URL`).
+ */
+export function resolveApiUrl(path: string, baseUrl?: string): string {
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path
+  }
+  const raw = (baseUrl !== undefined ? baseUrl : (import.meta.env.VITE_API_BASE_URL ?? '')).trim()
+  const base = raw.replace(/\/$/, '')
+  const p = path.startsWith('/') ? path : `/${path}`
+  return base ? `${base}${p}` : p
+}
+
 export function setSession(token: string, workspaceId: string): void {
   localStorage.setItem('accessToken', token)
   localStorage.setItem('workspaceId', workspaceId)
@@ -31,6 +45,7 @@ async function parseJson<T>(res: Response): Promise<T> {
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const url = resolveApiUrl(path)
   const headers = new Headers(init.headers)
   const token = getToken()
   if (token) {
@@ -44,7 +59,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     headers.set('Content-Type', 'application/json')
   }
 
-  const res = await fetch(path, { ...init, headers })
+  const res = await fetch(url, { ...init, headers })
 
   if (res.status === 204) {
     return undefined as T

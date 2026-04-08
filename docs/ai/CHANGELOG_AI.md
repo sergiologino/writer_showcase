@@ -11,3 +11,5 @@
 - **2026-04-09**: Добавлены `docs/DEPLOY_BACKEND.md` и `docs/DEPLOY_FRONTEND.md` (IDEA, локальный Postgres, сервер, Coolify); в `CURRENT_STATE.md` — ссылки и приоритизированные следующие шаги.
 
 - **2026-04-09**: Репозиторий Git: ветка `main`, remote [sergiologino/writer_showcase](https://github.com/sergiologino/writer_showcase); корневой `.gitignore`, первый push выполнен.
+
+- **2026-04-09**: План инфраструктуры: `apps/backend/Dockerfile`, `.dockerignore`, compose-сервис `api` (profile `backend`), npm `docker:up:all` / `docker:logs:api`; фронт — `VITE_API_BASE_URL`, `resolveApiUrl`, тесты, `apps/web/.env.example`; обновлены DEPLOY_*. ADR-009, ADR-010.

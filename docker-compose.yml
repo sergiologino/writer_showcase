@@ -1,6 +1,7 @@
-# Локальная инфраструктура для разработки. Приложения (Spring / Vite) по умолчанию на хосте.
-# Запуск: docker compose up -d
-# JDBC: jdbc:postgresql://localhost:5432/publisher (user/password publisher)
+# Локальная инфраструктура для разработки.
+# Только PostgreSQL: docker compose up -d
+# Postgres + API (образ из apps/backend/Dockerfile): docker compose --profile backend up -d
+# JDBC с хоста: localhost:5432. Из контейнера api: host postgres, порт 5432.
 
 services:
   postgres:
@@ -21,6 +22,25 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+
+  api:
+    profiles: ["backend"]
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: writer-showcase-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      DATASOURCE_URL: jdbc:postgresql://postgres:5432/publisher
+      DATASOURCE_USERNAME: publisher
+      DATASOURCE_PASSWORD: publisher
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-min-256-bits-for-production-use-256bits!}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   publisher_data:

@@ -30,6 +30,16 @@ npm run docker:up
 
 из корня репозитория (см. `docker-compose.yml`).
 
+**Вариант A2 — Postgres и API в Docker (образ из репозитория):**
+
+В корне репозитория есть `apps/backend/Dockerfile` (сборка через Maven внутри образа). Поднять БД и контейнер API:
+
+```text
+npm run docker:up:all
+```
+
+(эквивалентно `docker compose --profile backend up -d --build`). API будет на **http://localhost:8080**, Postgres по-прежнему на **localhost:5432**. Для продакшена задайте `JWT_SECRET` и при необходимости `CORS_ORIGINS` в окружении хоста перед запуском compose.
+
 **Вариант B — установленный PostgreSQL на машине:**
 
 Создайте пользователя и БД (имена могут быть любыми, но тогда поправьте env):
@@ -125,27 +135,18 @@ Coolify разворачивает приложение из Git и/или Docke
 
 ### 3.1. Подход A: Dockerfile в репозитории
 
-Создайте (или используйте) Dockerfile с **контекстом** `apps/backend`. Пример содержимого `apps/backend/Dockerfile`:
+В проекте уже есть **`apps/backend/Dockerfile`**: многостадийная сборка (`maven:3.9-eclipse-temurin-17-alpine` → `mvn package`, затем JRE с непривилегированным пользователем).
 
-```dockerfile
-FROM eclipse-temurin:17-jre-alpine
-WORKDIR /app
-ARG JAR_FILE=target/publisher-api-0.0.1-SNAPSHOT.jar
-COPY ${JAR_FILE} app.jar
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
-```
+В Coolify укажите:
 
-Тогда образ собирают **после** `mvn package` (CI или этап сборки в Coolify):
-
-- **Build command:** что-то вроде `./mvnw -B -DskipTests package` (рабочая директория `apps/backend`).
+- **Контекст сборки (Base Directory / Context):** `apps/backend` (или корень репозитория с **Dockerfile path** = `apps/backend/Dockerfile` — в зависимости от UI).
 - **Dockerfile path:** `apps/backend/Dockerfile`.
 
-Либо многоstадийная сборка внутри Dockerfile (копирование `mvnw`, `pom.xml`, `src`, запуск `./mvnw package` в первой стадии) — удобно для одного репозитория без отдельного CI.
+Отдельная команда `mvn package` на хосте не нужна: Maven выполняется внутри образа.
 
 ### 3.2. Подход B: только JAR + минимальный образ
 
-Соберите JAR локально или в CI, положите в артефакт и соберите образ только с `COPY ...jar` (как в примере выше).
+При желании соберите JAR в CI, скопируйте в образ только `COPY ...jar` (как в старых минимальных Dockerfile); текущий файл репозитория этому не обязан — он самодостаточен.
 
 ### 3.3. База данных в Coolify
 

@@ -6,7 +6,9 @@
     "build:web": "npm --prefix apps/web run build",
     "build:backend": "cd apps/backend && mvnw.cmd verify",
     "docker:up": "docker compose up -d",
+    "docker:up:all": "docker compose --profile backend up -d --build",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f postgres"
+    "docker:logs": "docker compose logs -f postgres",
+    "docker:logs:api": "docker compose logs -f api"
   }
 }

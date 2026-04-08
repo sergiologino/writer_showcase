@@ -2,7 +2,7 @@
 
 ## Репозиторий
 
-- **Монорепозиторий**: `apps/backend` (Spring Boot), `apps/web` (Vite + React + TS), корневой `package.json` со скриптом **`npm run build`** (фронт: Vitest + tsc + vite; бэкенд: `mvnw verify`).
+- **Монорепозиторий**: `apps/backend` (Spring Boot), `apps/web` (Vite + React + TS), корневой `package.json` со скриптом **`npm run build`** (фронт: Vitest + tsc + vite; бэкенд: `mvnw verify`). Удалённый репозиторий: [github.com/sergiologino/writer_showcase](https://github.com/sergiologino/writer_showcase).
 - **Память проекта**: `docs/ai/*`.
 - **Деплой (инструкции)**: [`DEPLOY_BACKEND.md`](../DEPLOY_BACKEND.md), [`DEPLOY_FRONTEND.md`](../DEPLOY_FRONTEND.md) в каталоге `docs/`.
 - **Docker**: `docker-compose.yml` — PostgreSQL 16 для разработки. Запуск: **`npm run docker:up`** (или `docker compose up -d`). Остановка: `npm run docker:down`. Параметры БД совпадают с дефолтами backend: хост `localhost`, порт `5432`, БД/логин/пароль `publisher`.

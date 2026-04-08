@@ -9,3 +9,5 @@
 - **2026-04-09**: Добавлен `docker-compose.yml` (Postgres 16) и npm-скрипты `docker:*`; ADR-007 (compose), ADR-008 (целевой URL `/{author_nickname}/...` после MVP, пока MVP на `workspace.slug`).
 
 - **2026-04-09**: Добавлены `docs/DEPLOY_BACKEND.md` и `docs/DEPLOY_FRONTEND.md` (IDEA, локальный Postgres, сервер, Coolify); в `CURRENT_STATE.md` — ссылки и приоритизированные следующие шаги.
+
+- **2026-04-09**: Репозиторий Git: ветка `main`, remote [sergiologino/writer_showcase](https://github.com/sergiologino/writer_showcase); корневой `.gitignore`, первый push выполнен.

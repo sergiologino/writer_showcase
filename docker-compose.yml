@@ -1,0 +1,26 @@
+# Локальная инфраструктура для разработки. Приложения (Spring / Vite) по умолчанию на хосте.
+# Запуск: docker compose up -d
+# JDBC: jdbc:postgresql://localhost:5432/publisher (user/password publisher)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: writer-showcase-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: publisher
+      POSTGRES_PASSWORD: publisher
+      POSTGRES_DB: publisher
+    ports:
+      - "5432:5432"
+    volumes:
+      - publisher_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U publisher -d publisher"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  publisher_data:

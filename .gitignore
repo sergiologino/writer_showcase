@@ -1,0 +1,26 @@
+# Backend (Maven)
+apps/backend/target/
+apps/backend/.mvn/wrapper/maven-wrapper.properties.bak
+
+# Frontend (Node / Vite)
+apps/web/node_modules/
+apps/web/dist/
+apps/web/.vite/
+*.tsbuildinfo
+
+# Env & secrets (do not commit real credentials)
+.env
+.env.*.local
+*.pem
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

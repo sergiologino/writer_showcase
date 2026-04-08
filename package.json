@@ -1,0 +1,12 @@
+{
+  "name": "writer-showcase",
+  "private": true,
+  "scripts": {
+    "build": "npm run build:web && npm run build:backend",
+    "build:web": "npm --prefix apps/web run build",
+    "build:backend": "cd apps/backend && mvnw.cmd verify",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f postgres"
+  }
+}

@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: publisher-api
+  datasource:
+    url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/publisher}
+    username: ${DATASOURCE_USERNAME:publisher}
+    password: ${DATASOURCE_PASSWORD:publisher}
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /
+
+publisher:
+  jwt:
+    secret: ${JWT_SECRET:dev-secret-change-min-256-bits-for-production-use-256bits!}
+    access-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:60}
+  cors:
+    allowed-origins:
+      - ${CORS_ORIGINS:http://localhost:5173}

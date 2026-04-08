@@ -1,0 +1,25 @@
+package io.altacod.publisher.api.dto;
+
+import io.altacod.publisher.post.PostStatus;
+import io.altacod.publisher.post.PostVisibility;
+
+import java.time.Instant;
+import java.util.List;
+
+public record PostResponse(
+        long id,
+        String title,
+        String slug,
+        String excerpt,
+        String bodySource,
+        String bodyHtml,
+        PostVisibility visibility,
+        PostStatus status,
+        boolean aiGenerated,
+        Long categoryId,
+        List<TagSummaryDto> tags,
+        Instant createdAt,
+        Instant updatedAt,
+        Instant publishedAt
+) {
+}

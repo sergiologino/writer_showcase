@@ -14,5 +14,11 @@ publisher:
   jwt:
     secret: test-secret-key-that-is-long-enough-for-hs256-bits-alignment!!
     access-ttl-minutes: 60
+    refresh-ttl-days: 7
+  rate-limit:
+    enabled: false
   cors:
     allowed-origins: http://localhost:5173
+  storage:
+    local-root: ${STORAGE_LOCAL_ROOT:target/test-storage}
+    max-upload-bytes: 1048576

@@ -34,6 +34,7 @@ export interface PostPayload {
   categoryId: number | null
   tagIds: number[]
   aiGenerated: boolean
+  mediaAssetIds: number[]
 }
 
 export function createPost(payload: PostPayload): Promise<PostResponse> {

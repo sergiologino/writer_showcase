@@ -46,6 +46,9 @@ export function AppShell() {
               <Link className="hover:text-[var(--text)]" to="/app/posts/new">
                 Новый материал
               </Link>
+              <Link className="hover:text-[var(--text)]" to="/app/media">
+                Медиа
+              </Link>
               {workspaceSlug ? (
                 <Link className="hover:text-[var(--text)]" to={`/blog/${workspaceSlug}`}>
                   Публичный блог

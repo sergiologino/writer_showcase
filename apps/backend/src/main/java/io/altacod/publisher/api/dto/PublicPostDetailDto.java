@@ -11,6 +11,7 @@ public record PublicPostDetailDto(
         String bodyHtml,
         CategoryResponse category,
         List<TagSummaryDto> tags,
+        List<PublicMediaDto> media,
         Instant publishedAt,
         Instant updatedAt
 ) {

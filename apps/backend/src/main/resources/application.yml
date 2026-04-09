@@ -16,6 +16,10 @@ spring:
         format_sql: true
   flyway:
     enabled: true
+  servlet:
+    multipart:
+      max-file-size: ${MULTIPART_MAX_FILE_SIZE:50MB}
+      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:55MB}
 
 server:
   port: ${SERVER_PORT:8080}
@@ -26,6 +30,22 @@ publisher:
   jwt:
     secret: ${JWT_SECRET:dev-secret-change-min-256-bits-for-production-use-256bits!}
     access-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:60}
+    refresh-ttl-days: ${JWT_REFRESH_TTL_DAYS:30}
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    auth-per-minute: ${RATE_LIMIT_AUTH_PER_MINUTE:40}
+    api-per-minute: ${RATE_LIMIT_API_PER_MINUTE:400}
+  integration-ai:
+    # noteapp-ai-integration (см. docs/ai/EXTERNAL_SERVICES_INTEGRATION.md)
+    base-url: ${AI_INTEGRATION_BASE_URL:${INTEGRATION_AI_BASE_URL:}}
+    api-key: ${AI_INTEGRATION_API_KEY:${INTEGRATION_AI_API_KEY:}}
+    api-key-header: ${AI_INTEGRATION_API_KEY_HEADER:${INTEGRATION_AI_API_KEY_HEADER:X-API-Key}}
+    process-path: ${AI_INTEGRATION_PROCESS_PATH:${INTEGRATION_AI_PROCESS_PATH:/api/ai/process}}
+    connect-timeout-ms: ${AI_INTEGRATION_CONNECT_TIMEOUT_MS:${INTEGRATION_AI_CONNECT_TIMEOUT_MS:5000}}
+    read-timeout-ms: ${AI_INTEGRATION_READ_TIMEOUT_MS:${INTEGRATION_AI_READ_TIMEOUT_MS:120000}}
   cors:
     allowed-origins:
       - ${CORS_ORIGINS:http://localhost:5173}
+  storage:
+    local-root: ${STORAGE_LOCAL_ROOT:storage}
+    max-upload-bytes: ${STORAGE_MAX_UPLOAD_BYTES:52428800}

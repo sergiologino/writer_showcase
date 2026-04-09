@@ -1,9 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
+import { fetchMediaPage } from '../api/media'
 import { createPost, fetchPost, updatePost, type PostPayload } from '../api/posts'
 import type { PostStatus, PostVisibility } from '../api/types'
 
@@ -41,6 +42,13 @@ export function PostEditorPage() {
     enabled: !isNew,
   })
 
+  const mediaPicker = useQuery({
+    queryKey: ['media', 'picker'],
+    queryFn: () => fetchMediaPage(0, 40),
+  })
+
+  const [mediaIds, setMediaIds] = useState<number[]>([])
+
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: defaults,
@@ -57,11 +65,17 @@ export function PostEditorPage() {
         visibility: existing.data.visibility,
         status: existing.data.status,
       })
+      setMediaIds(existing.data.media?.map((m) => m.mediaAssetId) ?? [])
     }
   }, [existing.data, form])
 
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
+      const inPickerOrder = (mediaPicker.data?.content ?? [])
+        .map((m) => m.id)
+        .filter((id) => mediaIds.includes(id))
+      const orderedMedia =
+        inPickerOrder.length === mediaIds.length ? inPickerOrder : [...mediaIds]
       const payload: PostPayload = {
         title: values.title,
         slug: values.slug?.trim() ?? '',
@@ -73,6 +87,7 @@ export function PostEditorPage() {
         categoryId: null,
         tagIds: [],
         aiGenerated: false,
+        mediaAssetIds: orderedMedia,
       }
       if (isNew) {
         return createPost(payload)
@@ -152,6 +167,47 @@ export function PostEditorPage() {
               {...form.register('bodyHtml')}
             />
           </label>
+
+          <div className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
+            <p className="text-sm font-medium">Медиа к материалy</p>
+            <p className="text-xs text-[var(--muted)]">
+              Отметьте файлы из библиотеки ({' '}
+              <Link className="text-[var(--accent)] hover:underline" to="/app/media">
+                загрузить
+              </Link>
+              ). Порядок — как в списке ниже (сверху вниз).
+            </p>
+            {mediaPicker.isLoading ? (
+              <p className="text-xs text-[var(--muted)]">Список медиа…</p>
+            ) : (
+              <ul className="max-h-48 space-y-2 overflow-y-auto text-sm">
+                {(mediaPicker.data?.content ?? []).map((m) => {
+                  const checked = mediaIds.includes(m.id)
+                  return (
+                    <li key={m.id}>
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setMediaIds((prev) => {
+                              const ix = prev.indexOf(m.id)
+                              if (ix >= 0) {
+                                return prev.filter((x) => x !== m.id)
+                              }
+                              return [...prev, m.id]
+                            })
+                          }}
+                        />
+                        <span className="font-mono text-xs">#{m.id}</span>
+                        <span className="text-[var(--muted)]">{m.mimeType ?? m.type}</span>
+                      </label>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block text-sm font-medium">

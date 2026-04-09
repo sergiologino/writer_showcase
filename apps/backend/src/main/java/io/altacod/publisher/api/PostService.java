@@ -1,8 +1,13 @@
 package io.altacod.publisher.api;
 
+import io.altacod.publisher.api.dto.PostMediaAttachmentDto;
 import io.altacod.publisher.api.dto.PostPayload;
 import io.altacod.publisher.api.dto.PostResponse;
 import io.altacod.publisher.api.dto.TagSummaryDto;
+import io.altacod.publisher.media.MediaAssetEntity;
+import io.altacod.publisher.media.MediaAssetRepository;
+import io.altacod.publisher.media.PostMediaEntity;
+import io.altacod.publisher.media.PostMediaRepository;
 import io.altacod.publisher.category.CategoryEntity;
 import io.altacod.publisher.category.CategoryRepository;
 import io.altacod.publisher.common.Slugify;
@@ -23,10 +28,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class PostService {
@@ -36,19 +45,25 @@ public class PostService {
     private final UserRepository userRepository;
     private final CategoryRepository categoryRepository;
     private final TagRepository tagRepository;
+    private final PostMediaRepository postMediaRepository;
+    private final MediaAssetRepository mediaAssetRepository;
 
     public PostService(
             PostRepository postRepository,
             WorkspaceRepository workspaceRepository,
             UserRepository userRepository,
             CategoryRepository categoryRepository,
-            TagRepository tagRepository
+            TagRepository tagRepository,
+            PostMediaRepository postMediaRepository,
+            MediaAssetRepository mediaAssetRepository
     ) {
         this.postRepository = postRepository;
         this.workspaceRepository = workspaceRepository;
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
         this.tagRepository = tagRepository;
+        this.postMediaRepository = postMediaRepository;
+        this.mediaAssetRepository = mediaAssetRepository;
     }
 
     @Transactional
@@ -82,6 +97,7 @@ public class PostService {
         applyTags(post, workspaceId, payload.tagIds());
 
         postRepository.save(post);
+        applyPostMedia(post, workspaceId, payload.mediaAssetIds());
         return toResponse(post);
     }
 
@@ -128,6 +144,7 @@ public class PostService {
         post.replaceTags(Set.of());
         applyCategory(post, workspaceId, payload.categoryId());
         applyTags(post, workspaceId, payload.tagIds());
+        applyPostMedia(post, workspaceId, payload.mediaAssetIds());
 
         return toResponse(post);
     }
@@ -147,6 +164,27 @@ public class PostService {
         CategoryEntity category = categoryRepository.findByIdAndWorkspaceId(categoryId, workspaceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid category"));
         post.setCategory(category);
+    }
+
+    private void applyPostMedia(PostEntity post, Long workspaceId, List<Long> mediaAssetIds) {
+        if (mediaAssetIds == null) {
+            return;
+        }
+        Long postId = post.getId();
+        postMediaRepository.deleteByPostId(postId);
+        if (mediaAssetIds.isEmpty()) {
+            return;
+        }
+        List<Long> ordered = new ArrayList<>(new LinkedHashSet<>(mediaAssetIds));
+        List<MediaAssetEntity> assets = mediaAssetRepository.findByWorkspaceIdAndIdIn(workspaceId, ordered);
+        if (assets.size() != ordered.size()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid media assets");
+        }
+        Map<Long, MediaAssetEntity> byId = assets.stream().collect(Collectors.toMap(MediaAssetEntity::getId, a -> a));
+        for (int i = 0; i < ordered.size(); i++) {
+            MediaAssetEntity asset = byId.get(ordered.get(i));
+            postMediaRepository.save(new PostMediaEntity(post, asset, i, null));
+        }
     }
 
     private void applyTags(PostEntity post, Long workspaceId, List<Long> tagIds) {
@@ -184,6 +222,15 @@ public class PostService {
                 .sorted(Comparator.comparing(TagEntity::getName, String.CASE_INSENSITIVE_ORDER))
                 .map(t -> new TagSummaryDto(t.getId(), t.getName(), t.getSlug()))
                 .toList();
+        List<PostMediaAttachmentDto> media = postMediaRepository.findByPostIdOrderBySortOrderAsc(post.getId()).stream()
+                .map(pm -> new PostMediaAttachmentDto(
+                        pm.getMediaAsset().getId(),
+                        pm.getMediaAsset().getMimeType(),
+                        pm.getMediaAsset().getAltText(),
+                        pm.getSortOrder(),
+                        pm.getCaption()
+                ))
+                .toList();
         Long categoryId = post.getCategory() == null ? null : post.getCategory().getId();
         return new PostResponse(
                 post.getId(),
@@ -197,6 +244,7 @@ public class PostService {
                 post.isAiGenerated(),
                 categoryId,
                 tags,
+                media,
                 post.getCreatedAt(),
                 post.getUpdatedAt(),
                 post.getPublishedAt()

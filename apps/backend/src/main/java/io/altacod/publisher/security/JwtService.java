@@ -24,6 +24,10 @@ public class JwtService {
         this.accessTtlMinutes = properties.jwt().accessTtlMinutes();
     }
 
+    public long accessTtlSeconds() {
+        return accessTtlMinutes * 60L;
+    }
+
     public String createAccessToken(String subjectEmail) {
         Instant now = Instant.now();
         Instant exp = now.plus(accessTtlMinutes, ChronoUnit.MINUTES);

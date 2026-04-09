@@ -1,12 +1,12 @@
 package io.altacod.publisher.api;
 
+import io.altacod.publisher.api.dto.PageResponse;
 import io.altacod.publisher.api.dto.PostPayload;
 import io.altacod.publisher.api.dto.PostResponse;
 import io.altacod.publisher.post.PostStatus;
 import io.altacod.publisher.security.SecurityUserPrincipal;
 import io.altacod.publisher.web.ActiveWorkspace;
 import jakarta.validation.Valid;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
@@ -43,13 +43,13 @@ public class PostController {
     }
 
     @GetMapping
-    public Page<PostResponse> list(
+    public PageResponse<PostResponse> list(
             @ActiveWorkspace Long workspaceId,
             @RequestParam(required = false) PostStatus status,
             @RequestParam(required = false) String q,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        return postService.list(workspaceId, status, q, pageable);
+        return PageResponse.from(postService.list(workspaceId, status, q, pageable));
     }
 
     @GetMapping("/{id}")

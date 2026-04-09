@@ -4,6 +4,11 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@EnableConfigurationProperties(PublisherProperties.class)
+@EnableConfigurationProperties({
+        PublisherProperties.class,
+        PublisherStorageProperties.class,
+        PublisherRateLimitProperties.class,
+        IntegrationAiProperties.class
+})
 public class AppConfig {
 }

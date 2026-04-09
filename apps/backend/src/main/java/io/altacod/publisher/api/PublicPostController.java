@@ -1,8 +1,8 @@
 package io.altacod.publisher.api;
 
+import io.altacod.publisher.api.dto.PageResponse;
 import io.altacod.publisher.api.dto.PublicPostDetailDto;
 import io.altacod.publisher.api.dto.PublicPostSummaryDto;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,11 +21,11 @@ public class PublicPostController {
     }
 
     @GetMapping
-    public Page<PublicPostSummaryDto> list(
+    public PageResponse<PublicPostSummaryDto> list(
             @PathVariable String workspaceSlug,
             @PageableDefault(size = 20) Pageable pageable
     ) {
-        return publicPostService.listPublished(workspaceSlug, pageable);
+        return PageResponse.from(publicPostService.listPublished(workspaceSlug, pageable));
     }
 
     @GetMapping("/{postSlug}")

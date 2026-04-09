@@ -1,9 +1,14 @@
 package io.altacod.publisher.api;
 
 import io.altacod.publisher.api.dto.LoginRequest;
+import io.altacod.publisher.api.dto.RefreshRequest;
 import io.altacod.publisher.api.dto.RegisterRequest;
 import io.altacod.publisher.api.dto.TokenResponse;
+import io.altacod.publisher.auth.RefreshTokenEntity;
+import io.altacod.publisher.auth.RefreshTokenRepository;
 import io.altacod.publisher.common.Slugify;
+import io.altacod.publisher.common.TokenHasher;
+import io.altacod.publisher.config.PublisherProperties;
 import io.altacod.publisher.security.JwtService;
 import io.altacod.publisher.user.UserEntity;
 import io.altacod.publisher.user.UserRepository;
@@ -21,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 @Service
 public class AuthService {
@@ -31,6 +37,8 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final PublisherProperties publisherProperties;
 
     public AuthService(
             UserRepository userRepository,
@@ -38,7 +46,9 @@ public class AuthService {
             MembershipRepository membershipRepository,
             PasswordEncoder passwordEncoder,
             AuthenticationManager authenticationManager,
-            JwtService jwtService
+            JwtService jwtService,
+            RefreshTokenRepository refreshTokenRepository,
+            PublisherProperties publisherProperties
     ) {
         this.userRepository = userRepository;
         this.workspaceRepository = workspaceRepository;
@@ -46,6 +56,8 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
+        this.refreshTokenRepository = refreshTokenRepository;
+        this.publisherProperties = publisherProperties;
     }
 
     @Transactional
@@ -77,15 +89,48 @@ public class AuthService {
 
         membershipRepository.save(new MembershipEntity(workspace, user, MembershipRole.OWNER, now));
 
-        String token = jwtService.createAccessToken(user.getEmail());
-        return TokenResponse.bearer(token);
+        return issueTokens(user);
     }
 
+    @Transactional
     public TokenResponse login(LoginRequest request) {
         String email = request.email().trim().toLowerCase();
         var token = new UsernamePasswordAuthenticationToken(email, request.password());
         authenticationManager.authenticate(token);
-        String jwt = jwtService.createAccessToken(email);
-        return TokenResponse.bearer(jwt);
+        UserEntity user = userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
+        refreshTokenRepository.revokeAllForUser(user.getId(), Instant.now());
+        return issueTokens(user);
+    }
+
+    @Transactional
+    public TokenResponse refresh(RefreshRequest request) {
+        String raw = request.refreshToken().trim();
+        String hash = TokenHasher.sha256Hex(raw);
+        RefreshTokenEntity existing = refreshTokenRepository.findByTokenHash(hash)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token"));
+        Instant now = Instant.now();
+        if (!existing.isActive(now)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token expired");
+        }
+        UserEntity user = existing.getUser();
+        existing.revoke(now);
+        refreshTokenRepository.save(existing);
+        return issueTokens(user);
+    }
+
+    private TokenResponse issueTokens(UserEntity user) {
+        String access = jwtService.createAccessToken(user.getEmail());
+        String refresh = persistRefreshToken(user);
+        return TokenResponse.bearer(access, refresh, jwtService.accessTtlSeconds());
+    }
+
+    private String persistRefreshToken(UserEntity user) {
+        String raw = TokenHasher.newOpaqueToken(32);
+        String hash = TokenHasher.sha256Hex(raw);
+        int days = publisherProperties.jwt().refreshTtlDays();
+        Instant exp = Instant.now().plus(days, ChronoUnit.DAYS);
+        refreshTokenRepository.save(new RefreshTokenEntity(user, hash, exp, Instant.now()));
+        return raw;
     }
 }

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
+import { resolveApiUrl } from '../api/client'
 import { fetchPublicPost } from '../api/posts'
 
 export function PublicPostPage() {
@@ -46,6 +47,35 @@ export function PublicPostPage() {
         ) : null}
       </header>
       {post.excerpt ? <p className="text-lg text-[var(--muted)]">{post.excerpt}</p> : null}
+      {post.media?.length ? (
+        <div className="space-y-4">
+          {post.media.map((m) =>
+            m.mimeType?.startsWith('image/') ? (
+              <figure key={m.id} className="space-y-2">
+                <img
+                  src={resolveApiUrl(m.url)}
+                  alt={m.altText ?? ''}
+                  className="max-h-[480px] w-full rounded-lg object-contain"
+                />
+                {m.caption ? (
+                  <figcaption className="text-sm text-[var(--muted)]">{m.caption}</figcaption>
+                ) : null}
+              </figure>
+            ) : (
+              <p key={m.id}>
+                <a
+                  className="text-sm text-[var(--accent)] hover:underline"
+                  href={resolveApiUrl(m.url)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Скачать вложение #{m.id}
+                </a>
+              </p>
+            ),
+          )}
+        </div>
+      ) : null}
       <div
         className="space-y-4 leading-relaxed [&_a]:text-[var(--accent)] [&_p]:my-3"
         dangerouslySetInnerHTML={{ __html: post.bodyHtml ?? '' }}

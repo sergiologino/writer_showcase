@@ -1,9 +1,11 @@
 package io.altacod.publisher.api;
 
 import io.altacod.publisher.api.dto.CategoryResponse;
+import io.altacod.publisher.api.dto.PublicMediaDto;
 import io.altacod.publisher.api.dto.PublicPostDetailDto;
 import io.altacod.publisher.api.dto.PublicPostSummaryDto;
 import io.altacod.publisher.api.dto.TagSummaryDto;
+import io.altacod.publisher.media.PostMediaRepository;
 import io.altacod.publisher.post.PostEntity;
 import io.altacod.publisher.post.PostRepository;
 import io.altacod.publisher.tag.TagEntity;
@@ -21,9 +23,11 @@ import java.util.List;
 public class PublicPostService {
 
     private final PostRepository postRepository;
+    private final PostMediaRepository postMediaRepository;
 
-    public PublicPostService(PostRepository postRepository) {
+    public PublicPostService(PostRepository postRepository, PostMediaRepository postMediaRepository) {
         this.postRepository = postRepository;
+        this.postMediaRepository = postMediaRepository;
     }
 
     @Transactional(readOnly = true)
@@ -66,6 +70,17 @@ public class PublicPostService {
                 .sorted(Comparator.comparing(TagEntity::getName, String.CASE_INSENSITIVE_ORDER))
                 .map(t -> new TagSummaryDto(t.getId(), t.getName(), t.getSlug()))
                 .toList();
+        String slug = post.getWorkspace().getSlug();
+        List<PublicMediaDto> media = postMediaRepository.findByPostIdOrderBySortOrderAsc(post.getId()).stream()
+                .map(pm -> new PublicMediaDto(
+                        pm.getMediaAsset().getId(),
+                        "/api/public/w/" + slug + "/media/" + pm.getMediaAsset().getId() + "/file",
+                        pm.getMediaAsset().getMimeType(),
+                        pm.getMediaAsset().getAltText(),
+                        pm.getSortOrder(),
+                        pm.getCaption()
+                ))
+                .toList();
         return new PublicPostDetailDto(
                 post.getId(),
                 post.getTitle(),
@@ -74,6 +89,7 @@ public class PublicPostService {
                 post.getBodyHtml(),
                 category,
                 tags,
+                media,
                 post.getPublishedAt(),
                 post.getUpdatedAt()
         );

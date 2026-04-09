@@ -18,6 +18,7 @@ public record PostResponse(
         boolean aiGenerated,
         Long categoryId,
         List<TagSummaryDto> tags,
+        List<PostMediaAttachmentDto> media,
         Instant createdAt,
         Instant updatedAt,
         Instant publishedAt

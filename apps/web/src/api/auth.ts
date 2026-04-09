@@ -6,7 +6,7 @@ export async function register(email: string, password: string, displayName: str
     method: 'POST',
     body: JSON.stringify({ email, password, displayName }),
   })
-  await establishSession(token.accessToken)
+  await establishSession(token)
 }
 
 export async function login(email: string, password: string): Promise<void> {
@@ -14,15 +14,16 @@ export async function login(email: string, password: string): Promise<void> {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   })
-  await establishSession(token.accessToken)
+  await establishSession(token)
 }
 
-async function establishSession(accessToken: string): Promise<void> {
-  localStorage.setItem('accessToken', accessToken)
+async function establishSession(token: TokenResponse): Promise<void> {
+  localStorage.setItem('accessToken', token.accessToken)
+  localStorage.setItem('refreshToken', token.refreshToken)
   const me = await apiFetch<MeResponse>('/api/me')
   const first = me.workspaces[0]
   if (!first) {
     throw new Error('No workspace')
   }
-  setSession(accessToken, String(first.id))
+  setSession(token.accessToken, String(first.id), token.refreshToken)
 }

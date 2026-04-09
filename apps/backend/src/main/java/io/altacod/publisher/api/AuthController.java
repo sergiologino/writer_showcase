@@ -1,6 +1,7 @@
 package io.altacod.publisher.api;
 
 import io.altacod.publisher.api.dto.LoginRequest;
+import io.altacod.publisher.api.dto.RefreshRequest;
 import io.altacod.publisher.api.dto.RegisterRequest;
 import io.altacod.publisher.api.dto.TokenResponse;
 import jakarta.validation.Valid;
@@ -30,5 +31,10 @@ public class AuthController {
     @PostMapping("/login")
     public TokenResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/refresh")
+    public TokenResponse refresh(@Valid @RequestBody RefreshRequest request) {
+        return authService.refresh(request);
     }
 }

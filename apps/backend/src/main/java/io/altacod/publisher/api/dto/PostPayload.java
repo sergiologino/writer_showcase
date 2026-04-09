@@ -18,6 +18,7 @@ public record PostPayload(
         @NotNull PostStatus status,
         Long categoryId,
         List<Long> tagIds,
-        Boolean aiGenerated
+        Boolean aiGenerated,
+        List<Long> mediaAssetIds
 ) {
 }

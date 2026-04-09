@@ -3,7 +3,10 @@ export type PostStatus = 'DRAFT' | 'REVIEW' | 'PUBLISHED' | 'ARCHIVED'
 
 export interface TokenResponse {
   accessToken: string
+  refreshToken: string
   tokenType: string
+  /** TTL access-токена в секундах */
+  expiresIn: number
 }
 
 export interface UserSummary {
@@ -30,6 +33,14 @@ export interface TagSummary {
   slug: string
 }
 
+export interface PostMediaAttachment {
+  mediaAssetId: number
+  mimeType: string | null
+  altText: string | null
+  sortOrder: number
+  caption: string | null
+}
+
 export interface PostResponse {
   id: number
   title: string
@@ -42,6 +53,7 @@ export interface PostResponse {
   aiGenerated: boolean
   categoryId: number | null
   tags: TagSummary[]
+  media: PostMediaAttachment[]
   createdAt: string
   updatedAt: string
   publishedAt: string | null
@@ -53,6 +65,8 @@ export interface PageDto<T> {
   totalPages: number
   size: number
   number: number
+  first?: boolean
+  last?: boolean
 }
 
 export interface PublicPostSummary {
@@ -63,6 +77,15 @@ export interface PublicPostSummary {
   publishedAt: string | null
 }
 
+export interface PublicMedia {
+  id: number
+  url: string
+  mimeType: string | null
+  altText: string | null
+  sortOrder: number
+  caption: string | null
+}
+
 export interface PublicPostDetail extends PublicPostSummary {
   bodyHtml: string | null
   category: {
@@ -71,5 +94,6 @@ export interface PublicPostDetail extends PublicPostSummary {
     slug: string
   } | null
   tags: TagSummary[]
+  media: PublicMedia[]
   updatedAt: string
 }

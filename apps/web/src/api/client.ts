@@ -16,13 +16,17 @@ export function resolveApiUrl(path: string, baseUrl?: string): string {
   return base ? `${base}${p}` : p
 }
 
-export function setSession(token: string, workspaceId: string): void {
+export function setSession(token: string, workspaceId: string, refreshToken?: string): void {
   localStorage.setItem('accessToken', token)
   localStorage.setItem('workspaceId', workspaceId)
+  if (refreshToken !== undefined) {
+    localStorage.setItem('refreshToken', refreshToken)
+  }
 }
 
 export function clearSession(): void {
   localStorage.removeItem('accessToken')
+  localStorage.removeItem('refreshToken')
   localStorage.removeItem('workspaceId')
 }
 
@@ -44,7 +48,45 @@ async function parseJson<T>(res: Response): Promise<T> {
   return JSON.parse(text) as T
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+let refreshInFlight: Promise<boolean> | null = null
+
+async function tryRefreshAccessToken(): Promise<boolean> {
+  const rt = localStorage.getItem('refreshToken')
+  if (!rt) {
+    return false
+  }
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      try {
+        const url = resolveApiUrl('/api/auth/refresh')
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: rt }),
+        })
+        if (!res.ok) {
+          return false
+        }
+        const data = (await res.json()) as {
+          accessToken: string
+          refreshToken?: string
+        }
+        localStorage.setItem('accessToken', data.accessToken)
+        if (data.refreshToken) {
+          localStorage.setItem('refreshToken', data.refreshToken)
+        }
+        return true
+      } catch {
+        return false
+      } finally {
+        refreshInFlight = null
+      }
+    })()
+  }
+  return refreshInFlight
+}
+
+export async function apiFetch<T>(path: string, init: RequestInit = {}, isRetry = false): Promise<T> {
   const url = resolveApiUrl(path)
   const headers = new Headers(init.headers)
   const token = getToken()
@@ -60,6 +102,14 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   }
 
   const res = await fetch(url, { ...init, headers })
+
+  if (res.status === 401 && !isRetry && token && !path.startsWith('/api/auth/')) {
+    const refreshed = await tryRefreshAccessToken()
+    if (refreshed) {
+      return apiFetch<T>(path, init, true)
+    }
+    clearSession()
+  }
 
   if (res.status === 204) {
     return undefined as T

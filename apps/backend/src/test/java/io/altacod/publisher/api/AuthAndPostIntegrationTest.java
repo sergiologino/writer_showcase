@@ -77,7 +77,8 @@ class AuthAndPostIntegrationTest {
                 PostStatus.DRAFT,
                 null,
                 List.of(),
-                false
+                false,
+                null
         );
 
         mockMvc.perform(post("/api/posts")
@@ -137,7 +138,8 @@ class AuthAndPostIntegrationTest {
                 PostStatus.PUBLISHED,
                 null,
                 List.of(),
-                false
+                false,
+                null
         );
 
         mockMvc.perform(post("/api/posts")

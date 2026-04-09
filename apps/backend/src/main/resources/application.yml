@@ -49,3 +49,13 @@ publisher:
   storage:
     local-root: ${STORAGE_LOCAL_ROOT:storage}
     max-upload-bytes: ${STORAGE_MAX_UPLOAD_BYTES:52428800}
+  redis:
+    enabled: ${PUBLISHER_REDIS_ENABLED:false}
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+  public-site:
+    # Базовый URL публичного фронта для ссылок в TG/VK (например http://localhost:5173)
+    base-url: ${PUBLIC_SITE_BASE_URL:}
+  channels:
+    poll-delay-ms: ${PUBLISHER_CHANNEL_POLL_MS:2000}

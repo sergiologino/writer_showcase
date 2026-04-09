@@ -9,5 +9,7 @@ public interface WorkspaceChannelRepository extends JpaRepository<WorkspaceChann
 
     List<WorkspaceChannelEntity> findByWorkspaceIdOrderByChannelTypeAsc(Long workspaceId);
 
+    List<WorkspaceChannelEntity> findByWorkspaceIdAndEnabledIsTrueOrderByChannelTypeAsc(Long workspaceId);
+
     Optional<WorkspaceChannelEntity> findByWorkspaceIdAndChannelType(Long workspaceId, ChannelType channelType);
 }

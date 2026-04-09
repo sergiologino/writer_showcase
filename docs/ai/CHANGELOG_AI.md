@@ -17,3 +17,5 @@
 - **2026-04-09**: Refresh-токены (opaque + SHA-256 в БД, ротация при `/api/auth/refresh`), каналы TG/VK (`workspace_channels`, API `/api/channels`, маскирование секретов в ответах), промпты AI (`workspace_ai_prompts`, `/api/ai/prompts`, `/api/ai/invoke` → внешний сервис по `publisher.integration-ai.*`), `PageResponse`, in-memory rate limit по IP; фронт: `refreshToken`, авто-refresh при 401. Flyway V3.
 
 - **2026-04-09**: Интеграция AI переведена на контракт noteapp-ai-integration: `POST /api/ai/process`, только `X-API-Key`, тело как `AiRequestDTO` (userId, networkName, requestType, payload с `messages`, metadata); ответ `AiInvokeResponse` разбирается по `status`/`errorMessage`; env `AI_INTEGRATION_*` (и совместимость `INTEGRATION_AI_*`).
+
+- **2026-04-09**: Фоновая публикация в TG/VK: событие после первого `PUBLISHED`+`PUBLIC`, очередь in-memory или Redis (`publisher.redis.*`), планировщик, `channel_outbound_log` (Flyway V4), ссылки на пост через `publisher.public-site.base-url`; в compose добавлен Redis для profile `backend`.

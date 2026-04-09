@@ -1,9 +1,16 @@
 # Локальная инфраструктура для разработки.
 # Только PostgreSQL: docker compose up -d
-# Postgres + API (образ из apps/backend/Dockerfile): docker compose --profile backend up -d
-# JDBC с хоста: localhost:5432. Из контейнера api: host postgres, порт 5432.
+# Postgres + Redis + API (образ из apps/backend/Dockerfile): docker compose --profile backend up -d
+# JDBC с хоста: localhost:5432. Redis: localhost:6379. Из контейнера api: postgres:5432, redis:6379.
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: writer-showcase-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
   postgres:
     image: postgres:16-alpine
     container_name: writer-showcase-postgres
@@ -42,11 +49,18 @@ services:
       JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
       AI_INTEGRATION_BASE_URL: ${AI_INTEGRATION_BASE_URL:-}
       AI_INTEGRATION_API_KEY: ${AI_INTEGRATION_API_KEY:-}
+      PUBLISHER_REDIS_ENABLED: ${PUBLISHER_REDIS_ENABLED:-true}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      PUBLIC_SITE_BASE_URL: ${PUBLIC_SITE_BASE_URL:-http://localhost:5173}
     volumes:
       - publisher_media:/data/storage
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
 
 volumes:
   publisher_data:

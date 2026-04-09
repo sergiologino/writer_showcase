@@ -11,15 +11,18 @@ import io.altacod.publisher.media.PostMediaRepository;
 import io.altacod.publisher.category.CategoryEntity;
 import io.altacod.publisher.category.CategoryRepository;
 import io.altacod.publisher.common.Slugify;
+import io.altacod.publisher.channel.publish.PostPublishedEvent;
 import io.altacod.publisher.post.PostEntity;
 import io.altacod.publisher.post.PostRepository;
 import io.altacod.publisher.post.PostStatus;
+import io.altacod.publisher.post.PostVisibility;
 import io.altacod.publisher.tag.TagEntity;
 import io.altacod.publisher.tag.TagRepository;
 import io.altacod.publisher.user.UserEntity;
 import io.altacod.publisher.user.UserRepository;
 import io.altacod.publisher.workspace.WorkspaceEntity;
 import io.altacod.publisher.workspace.WorkspaceRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -47,6 +50,7 @@ public class PostService {
     private final TagRepository tagRepository;
     private final PostMediaRepository postMediaRepository;
     private final MediaAssetRepository mediaAssetRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public PostService(
             PostRepository postRepository,
@@ -55,7 +59,8 @@ public class PostService {
             CategoryRepository categoryRepository,
             TagRepository tagRepository,
             PostMediaRepository postMediaRepository,
-            MediaAssetRepository mediaAssetRepository
+            MediaAssetRepository mediaAssetRepository,
+            ApplicationEventPublisher eventPublisher
     ) {
         this.postRepository = postRepository;
         this.workspaceRepository = workspaceRepository;
@@ -64,6 +69,7 @@ public class PostService {
         this.tagRepository = tagRepository;
         this.postMediaRepository = postMediaRepository;
         this.mediaAssetRepository = mediaAssetRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -98,6 +104,9 @@ public class PostService {
 
         postRepository.save(post);
         applyPostMedia(post, workspaceId, payload.mediaAssetIds());
+        if (payload.status() == PostStatus.PUBLISHED && payload.visibility() == PostVisibility.PUBLIC) {
+            eventPublisher.publishEvent(new PostPublishedEvent(post.getId()));
+        }
         return toResponse(post);
     }
 
@@ -119,6 +128,7 @@ public class PostService {
         PostEntity post = postRepository.findByIdAndWorkspaceId(id, workspaceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found"));
         PostStatus previous = post.getStatus();
+        PostVisibility previousVisibility = post.getVisibility();
         String slug = resolveSlug(workspaceId, payload.title(), payload.slug(), id);
         Instant now = Instant.now();
         Instant publishedAt = post.getPublishedAt();
@@ -145,6 +155,14 @@ public class PostService {
         applyCategory(post, workspaceId, payload.categoryId());
         applyTags(post, workspaceId, payload.tagIds());
         applyPostMedia(post, workspaceId, payload.mediaAssetIds());
+
+        boolean wasPublishedPublic =
+                previous == PostStatus.PUBLISHED && previousVisibility == PostVisibility.PUBLIC;
+        boolean nowPublishedPublic =
+                payload.status() == PostStatus.PUBLISHED && payload.visibility() == PostVisibility.PUBLIC;
+        if (nowPublishedPublic && !wasPublishedPublic) {
+            eventPublisher.publishEvent(new PostPublishedEvent(post.getId()));
+        }
 
         return toResponse(post);
     }

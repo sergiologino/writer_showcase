@@ -1,4 +1,7 @@
 spring:
+  task:
+    scheduling:
+      enabled: false
   datasource:
     url: jdbc:h2:mem:pub_${random.uuid};MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
@@ -22,3 +25,9 @@ publisher:
   storage:
     local-root: ${STORAGE_LOCAL_ROOT:target/test-storage}
     max-upload-bytes: 1048576
+  redis:
+    enabled: false
+  public-site:
+    base-url: ""
+  channels:
+    poll-delay-ms: 60000

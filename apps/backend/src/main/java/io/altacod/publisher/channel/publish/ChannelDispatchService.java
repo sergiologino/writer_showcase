@@ -9,6 +9,7 @@ import io.altacod.publisher.channel.ChannelOutboundLogRepository;
 import io.altacod.publisher.channel.ChannelType;
 import io.altacod.publisher.channel.WorkspaceChannelEntity;
 import io.altacod.publisher.channel.WorkspaceChannelRepository;
+import io.altacod.publisher.config.PublisherChannelDeliveryProperties;
 import io.altacod.publisher.config.PublisherPublicSiteProperties;
 import io.altacod.publisher.post.PostEntity;
 import io.altacod.publisher.post.PostRepository;
@@ -26,6 +27,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class ChannelDispatchService {
@@ -40,6 +42,7 @@ public class ChannelDispatchService {
     private final WorkspaceChannelRepository channelRepository;
     private final ChannelOutboundLogRepository outboundLogRepository;
     private final PublisherPublicSiteProperties publicSite;
+    private final PublisherChannelDeliveryProperties deliveryProps;
     private final ObjectMapper objectMapper;
     private final RestClient http = RestClient.create();
 
@@ -48,12 +51,14 @@ public class ChannelDispatchService {
             WorkspaceChannelRepository channelRepository,
             ChannelOutboundLogRepository outboundLogRepository,
             PublisherPublicSiteProperties publicSite,
+            PublisherChannelDeliveryProperties deliveryProps,
             ObjectMapper objectMapper
     ) {
         this.postRepository = postRepository;
         this.channelRepository = channelRepository;
         this.outboundLogRepository = outboundLogRepository;
         this.publicSite = publicSite;
+        this.deliveryProps = deliveryProps;
         this.objectMapper = objectMapper;
     }
 
@@ -79,22 +84,54 @@ public class ChannelDispatchService {
                 }
             } catch (Exception e) {
                 log.warn("Channel {} publish failed for post {}", ch.getChannelType(), postId, e);
-                upsertFailure(post, ch.getChannelType(), e.getMessage(), now);
+                recordFailureRetryable(post, ch.getChannelType(), e.getMessage(), now);
             }
+        }
+    }
+
+    /**
+     * Повторная доставка одного канала (из планировщика по {@code next_retry_at}).
+     */
+    @Transactional
+    public void retryOne(long postId, ChannelType type) {
+        PostEntity post = postRepository.findById(postId).orElse(null);
+        if (post == null) {
+            return;
+        }
+        Instant now = Instant.now();
+        if (post.getStatus() != PostStatus.PUBLISHED || post.getVisibility() != PostVisibility.PUBLIC) {
+            recordFailureTerminal(post, type, "Post no longer published as PUBLIC; retries stopped", now);
+            return;
+        }
+        Long wsId = post.getWorkspace().getId();
+        WorkspaceChannelEntity ch = channelRepository.findByWorkspaceIdAndChannelType(wsId, type).orElse(null);
+        if (ch == null || !ch.isEnabled()) {
+            recordFailureTerminal(post, type, "Channel disabled or not configured", now);
+            return;
+        }
+        try {
+            switch (type) {
+                case TELEGRAM -> sendTelegram(post, ch, now);
+                case VK -> sendVk(post, ch, now);
+                default -> log.debug("Unsupported channel type: {}", type);
+            }
+        } catch (Exception e) {
+            log.warn("Channel {} retry failed for post {}", type, postId, e);
+            recordFailureRetryable(post, type, e.getMessage(), now);
         }
     }
 
     private void sendTelegram(PostEntity post, WorkspaceChannelEntity ch, Instant now) throws Exception {
         Optional<ChannelOutboundLogEntity> existing =
                 outboundLogRepository.findByPost_IdAndChannelType(post.getId(), ChannelType.TELEGRAM);
-        if (existing.isPresent() && existing.get().getStatus() == ChannelDeliveryStatus.SENT) {
+        if (shouldSkipDelivery(existing, now)) {
             return;
         }
         JsonNode cfg = objectMapper.readTree(ch.getConfigJson());
         String token = text(cfg, "botToken");
         String chatId = text(cfg, "chatId");
         if (token == null || token.isBlank() || chatId == null || chatId.isBlank()) {
-            upsertFailure(post, ChannelType.TELEGRAM, "Missing botToken or chatId in channel config", now);
+            recordFailureTerminal(post, ChannelType.TELEGRAM, "Missing botToken or chatId in channel config", now);
             return;
         }
         String text = buildMessage(post);
@@ -125,21 +162,21 @@ public class ChannelDispatchService {
     private void sendVk(PostEntity post, WorkspaceChannelEntity ch, Instant now) throws Exception {
         Optional<ChannelOutboundLogEntity> existing =
                 outboundLogRepository.findByPost_IdAndChannelType(post.getId(), ChannelType.VK);
-        if (existing.isPresent() && existing.get().getStatus() == ChannelDeliveryStatus.SENT) {
+        if (shouldSkipDelivery(existing, now)) {
             return;
         }
         JsonNode cfg = objectMapper.readTree(ch.getConfigJson());
         String accessToken = text(cfg, "accessToken");
         String groupIdRaw = text(cfg, "groupId");
         if (accessToken == null || accessToken.isBlank() || groupIdRaw == null || groupIdRaw.isBlank()) {
-            upsertFailure(post, ChannelType.VK, "Missing accessToken or groupId in channel config", now);
+            recordFailureTerminal(post, ChannelType.VK, "Missing accessToken or groupId in channel config", now);
             return;
         }
         long groupId;
         try {
             groupId = Long.parseLong(groupIdRaw.trim());
         } catch (NumberFormatException e) {
-            upsertFailure(post, ChannelType.VK, "Invalid groupId (expected numeric)", now);
+            recordFailureTerminal(post, ChannelType.VK, "Invalid groupId (expected numeric)", now);
             return;
         }
         String message = buildMessage(post);
@@ -165,28 +202,87 @@ public class ChannelDispatchService {
         upsertSuccess(post, ChannelType.VK, now);
     }
 
+    /**
+     * @return {@code true}, если уже доставлено, окончательно упало или ждём следующего слота ретрая.
+     */
+    private boolean shouldSkipDelivery(Optional<ChannelOutboundLogEntity> existing, Instant now) {
+        if (existing.isEmpty()) {
+            return false;
+        }
+        ChannelOutboundLogEntity row = existing.get();
+        if (row.getStatus() == ChannelDeliveryStatus.SENT) {
+            return true;
+        }
+        if (row.getStatus() == ChannelDeliveryStatus.FAILED && !row.isRetryable()) {
+            return true;
+        }
+        return row.getStatus() == ChannelDeliveryStatus.FAILED
+                && row.isRetryable()
+                && row.getNextRetryAt() != null
+                && row.getNextRetryAt().isAfter(now);
+    }
+
     private void upsertSuccess(PostEntity post, ChannelType type, Instant now) {
         Optional<ChannelOutboundLogEntity> existing =
                 outboundLogRepository.findByPost_IdAndChannelType(post.getId(), type);
         if (existing.isEmpty()) {
-            outboundLogRepository.save(new ChannelOutboundLogEntity(
-                    post, type, ChannelDeliveryStatus.SENT, null, now));
+            outboundLogRepository.save(
+                    new ChannelOutboundLogEntity(post, type, ChannelDeliveryStatus.SENT, null, now));
         } else {
             ChannelOutboundLogEntity e = existing.get();
             e.markSent(now);
         }
     }
 
-    private void upsertFailure(PostEntity post, ChannelType type, String error, Instant now) {
+    private void recordFailureRetryable(PostEntity post, ChannelType type, String error, Instant now) {
         String err = truncateError(error);
-        Optional<ChannelOutboundLogEntity> existing =
+        Optional<ChannelOutboundLogEntity> opt =
                 outboundLogRepository.findByPost_IdAndChannelType(post.getId(), type);
-        if (existing.isEmpty()) {
-            outboundLogRepository.save(new ChannelOutboundLogEntity(
-                    post, type, ChannelDeliveryStatus.FAILED, err, now));
+        int prev = opt.map(ChannelOutboundLogEntity::getAttemptCount).orElse(0);
+        int nextAttempt = prev + 1;
+        int max = Math.max(1, deliveryProps.getMaxAttempts());
+        ChannelOutboundLogEntity row = findOrCreateFailedRow(post, type, err, now, opt);
+        if (nextAttempt >= max) {
+            row.markTerminalFailure(err + " (max attempts " + max + ")", now);
         } else {
-            existing.get().markFailed(err, now);
+            long delaySec = computeBackoffSeconds(nextAttempt);
+            Instant nextAt = now.plusSeconds(delaySec);
+            row.markRetryableFailure(err, now, nextAttempt, nextAt);
         }
+        outboundLogRepository.save(row);
+    }
+
+    private void recordFailureTerminal(PostEntity post, ChannelType type, String error, Instant now) {
+        String err = truncateError(error);
+        Optional<ChannelOutboundLogEntity> opt =
+                outboundLogRepository.findByPost_IdAndChannelType(post.getId(), type);
+        ChannelOutboundLogEntity row = findOrCreateFailedRow(post, type, err, now, opt);
+        row.markTerminalFailure(err, now);
+        outboundLogRepository.save(row);
+    }
+
+    private static ChannelOutboundLogEntity findOrCreateFailedRow(
+            PostEntity post,
+            ChannelType type,
+            String err,
+            Instant now,
+            Optional<ChannelOutboundLogEntity> opt
+    ) {
+        return opt.orElseGet(() -> new ChannelOutboundLogEntity(
+                post, type, ChannelDeliveryStatus.FAILED, err, now));
+    }
+
+    /**
+     * Экспоненциальная задержка от номера неудачной попытки (1 = первая ошибка), с джиттером и потолком.
+     */
+    private long computeBackoffSeconds(int failedAttemptNumber) {
+        int base = Math.max(5, deliveryProps.getBaseDelaySeconds());
+        int cap = Math.max(base, deliveryProps.getMaxDelaySeconds());
+        int jitterPct = Math.min(50, Math.max(0, deliveryProps.getJitterPercent()));
+        double exp = Math.min(cap, base * Math.pow(2, Math.max(0, failedAttemptNumber - 1)));
+        double jitter = exp * (ThreadLocalRandom.current().nextDouble(-jitterPct, jitterPct) / 100.0);
+        long total = Math.round(exp + jitter);
+        return Math.min(cap, Math.max(1, total));
     }
 
     private String buildMessage(PostEntity post) {

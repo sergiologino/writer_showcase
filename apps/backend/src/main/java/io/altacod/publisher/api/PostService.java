@@ -24,13 +24,16 @@ import io.altacod.publisher.workspace.WorkspaceEntity;
 import io.altacod.publisher.workspace.WorkspaceRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -113,7 +116,13 @@ public class PostService {
     @Transactional(readOnly = true)
     public Page<PostResponse> list(Long workspaceId, PostStatus status, String q, Pageable pageable) {
         String query = q == null || q.isBlank() ? null : q.trim();
-        return postRepository.findWorkspaceFeed(workspaceId, status, query, pageable).map(this::toResponse);
+        String qPattern = query == null ? null : "%" + query.toLowerCase(Locale.ROOT) + "%";
+        Pageable sorted = PageRequest.of(
+                pageable.getPageNumber(),
+                pageable.getPageSize(),
+                Sort.by(Sort.Direction.DESC, "updatedAt")
+        );
+        return postRepository.findWorkspaceFeed(workspaceId, status, qPattern, sorted).map(this::toResponse);
     }
 
     @Transactional(readOnly = true)

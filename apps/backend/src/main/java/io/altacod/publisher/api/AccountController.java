@@ -1,7 +1,11 @@
 package io.altacod.publisher.api;
 
 import io.altacod.publisher.api.dto.MeResponse;
+import io.altacod.publisher.api.dto.UpdateProfilePayload;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -18,5 +22,10 @@ public class AccountController {
     @GetMapping("/me")
     public MeResponse me() {
         return accountService.me();
+    }
+
+    @PatchMapping("/me")
+    public MeResponse updateMe(@Valid @RequestBody UpdateProfilePayload payload) {
+        return accountService.updateProfile(payload);
     }
 }

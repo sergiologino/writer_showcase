@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { ApiError } from '../api/client'
 import { fetchPostPage } from '../api/posts'
 import type { PostStatus } from '../api/types'
 import { useState } from 'react'
@@ -24,7 +25,11 @@ export function FeedPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Лента</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">Черновики и опубликованные материалы в одном месте</p>
+        <p className="mt-1 text-sm text-[var(--muted)]">
+          Черновики и опубликованные материалы в одном месте. В{' '}
+          <span className="text-[var(--text)]">публичном блоге</span> показываются только посты со статусом «Опубликован»
+          и публичной видимостью.
+        </p>
       </div>
 
       <div className="flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm sm:flex-row sm:items-end">
@@ -56,7 +61,16 @@ export function FeedPage() {
       {query.isLoading ? (
         <p className="text-sm text-[var(--muted)]">Загрузка…</p>
       ) : query.isError ? (
-        <p className="text-sm text-red-600">Не удалось загрузить ленту</p>
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+          <p className="font-medium">Не удалось загрузить ленту</p>
+          <p className="mt-1 text-xs opacity-90">
+            {query.error instanceof ApiError
+              ? `${query.error.message} (код ${query.error.status})`
+              : query.error instanceof Error
+                ? query.error.message
+                : 'Проверьте, что API запущен, вы вошли в аккаунт и сессия не сброшена.'}
+          </p>
+        </div>
       ) : (
         <ul className="space-y-3">
           {query.data?.content.map((post) => (
@@ -83,9 +97,10 @@ export function FeedPage() {
 
       {query.data && query.data.content.length === 0 ? (
         <p className="text-sm text-[var(--muted)]">
-          Пока пусто.{' '}
+          Пока пусто (или сбросьте фильтры выше). Черновик сохраняется со статусом «Черновик» — он виден здесь, но не в
+          публичном блоге.{' '}
           <Link className="text-[var(--accent)] hover:underline" to="/app/posts/new">
-            Создайте первый материал
+            Создать материал
           </Link>
         </p>
       ) : null}

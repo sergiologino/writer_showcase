@@ -44,7 +44,6 @@ services:
       DATASOURCE_USERNAME: publisher
       DATASOURCE_PASSWORD: publisher
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-min-256-bits-for-production-use-256bits!}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       STORAGE_LOCAL_ROOT: /data/storage
       JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
       AI_INTEGRATION_BASE_URL: ${AI_INTEGRATION_BASE_URL:-}

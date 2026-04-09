@@ -94,8 +94,9 @@ export function PostEditorPage() {
       }
       return updatePost(Number(id), payload)
     },
-    onSuccess: (post) => {
-      qc.invalidateQueries({ queryKey: ['posts'] })
+    onSuccess: async (post) => {
+      await qc.invalidateQueries({ queryKey: ['posts'] })
+      await qc.refetchQueries({ queryKey: ['posts'] })
       navigate(`/app/posts/${post.id}`)
     },
   })
@@ -232,6 +233,9 @@ export function PostEditorPage() {
                 <option value="PUBLISHED">Опубликован</option>
                 <option value="ARCHIVED">Архив</option>
               </select>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                Публичный блог показывает только сочетание «Опубликован» + видимость «Публичная».
+              </p>
             </label>
           </div>
 

@@ -12,17 +12,18 @@ public interface PostRepository extends JpaRepository<PostEntity, Long> {
 
     Optional<PostEntity> findByIdAndWorkspaceId(Long id, Long workspaceId);
 
+    /** Lowercase LIKE pattern with {@code %} wildcards, or {@code null} to skip text filter (avoids PG {@code lower(bytea)} from Hibernate concat). */
     @Query("""
             select p from PostEntity p
             where p.workspace.id = :workspaceId
             and (:status is null or p.status = :status)
-            and (:q is null or lower(p.title) like lower(concat('%', :q, '%'))
-                      or lower(coalesce(p.excerpt, '')) like lower(concat('%', :q, '%')))
+            and (:qPattern is null or lower(p.title) like :qPattern
+                      or lower(coalesce(p.excerpt, '')) like :qPattern)
             """)
     Page<PostEntity> findWorkspaceFeed(
             @Param("workspaceId") Long workspaceId,
             @Param("status") PostStatus status,
-            @Param("q") String q,
+            @Param("qPattern") String qPattern,
             Pageable pageable
     );
 

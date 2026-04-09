@@ -5,6 +5,7 @@ import { FeedPage } from './pages/FeedPage'
 import { LoginPage } from './pages/LoginPage'
 import { MediaLibraryPage } from './pages/MediaLibraryPage'
 import { PostEditorPage } from './pages/PostEditorPage'
+import { ProfilePage } from './pages/ProfilePage'
 import { PublicBlogPage } from './pages/PublicBlogPage'
 import { PublicPostPage } from './pages/PublicPostPage'
 import { RegisterPage } from './pages/RegisterPage'
@@ -35,6 +36,7 @@ export default function App() {
         <Route index element={<Navigate to="feed" replace />} />
         <Route path="feed" element={<FeedPage />} />
         <Route path="media" element={<MediaLibraryPage />} />
+        <Route path="profile" element={<ProfilePage />} />
         <Route path="posts/new" element={<PostEditorPage />} />
         <Route path="posts/:id" element={<PostEditorPage />} />
       </Route>

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { apiFetch, clearSession } from '../api/client'
 import type { MeResponse } from '../api/types'
 import { applyTheme, getStoredTheme, type Theme } from '../lib/theme'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 export function AppShell() {
   const navigate = useNavigate()
@@ -29,7 +29,20 @@ export function AppShell() {
     queryFn: () => apiFetch<MeResponse>('/api/me'),
   })
 
-  const workspaceSlug = me.data?.workspaces[0]?.slug
+  const workspaceSlug = useMemo(() => {
+    const list = me.data?.workspaces
+    if (!list?.length) {
+      return undefined
+    }
+    const id = localStorage.getItem('workspaceId')
+    if (id) {
+      const hit = list.find((w) => String(w.id) === id)
+      if (hit) {
+        return hit.slug
+      }
+    }
+    return list[0].slug
+  }, [me.data])
 
   return (
     <div className="min-h-screen">
@@ -48,6 +61,9 @@ export function AppShell() {
               </Link>
               <Link className="hover:text-[var(--text)]" to="/app/media">
                 Медиа
+              </Link>
+              <Link className="hover:text-[var(--text)]" to="/app/profile">
+                Профиль
               </Link>
               {workspaceSlug ? (
                 <Link className="hover:text-[var(--text)]" to={`/blog/${workspaceSlug}`}>
@@ -70,9 +86,13 @@ export function AppShell() {
               </select>
             </label>
             {me.data ? (
-              <span className="max-w-[10rem] truncate text-xs text-[var(--muted)]" title={me.data.user.email}>
+              <Link
+                className="max-w-[10rem] truncate text-xs text-[var(--muted)] hover:text-[var(--text)] hover:underline"
+                to="/app/profile"
+                title={me.data.user.email}
+              >
                 {me.data.user.displayName}
-              </span>
+              </Link>
             ) : null}
             <button
               type="button"

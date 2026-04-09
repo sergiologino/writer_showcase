@@ -44,8 +44,12 @@ publisher:
     connect-timeout-ms: ${AI_INTEGRATION_CONNECT_TIMEOUT_MS:${INTEGRATION_AI_CONNECT_TIMEOUT_MS:5000}}
     read-timeout-ms: ${AI_INTEGRATION_READ_TIMEOUT_MS:${INTEGRATION_AI_READ_TIMEOUT_MS:120000}}
   cors:
-    allowed-origins:
-      - ${CORS_ORIGINS:http://localhost:5173}
+    # Любой порт на localhost (Vite часто занимает 5174, если 5173 занят)
+    allowed-origin-patterns:
+      - "http://localhost:*"
+      - "http://127.0.0.1:*"
+    # Опционально: точные origin для продакшена (если заданы — используются вместо паттернов выше)
+    allowed-origins: []
   storage:
     local-root: ${STORAGE_LOCAL_ROOT:storage}
     max-upload-bytes: ${STORAGE_MAX_UPLOAD_BYTES:52428800}
@@ -59,3 +63,10 @@ publisher:
     base-url: ${PUBLIC_SITE_BASE_URL:}
   channels:
     poll-delay-ms: ${PUBLISHER_CHANNEL_POLL_MS:2000}
+    retry-poll-ms: ${PUBLISHER_CHANNEL_RETRY_POLL_MS:45000}
+    delivery:
+      max-attempts: ${PUBLISHER_CHANNEL_MAX_ATTEMPTS:8}
+      base-delay-seconds: ${PUBLISHER_CHANNEL_BACKOFF_BASE_SEC:45}
+      max-delay-seconds: ${PUBLISHER_CHANNEL_BACKOFF_MAX_SEC:7200}
+      jitter-percent: ${PUBLISHER_CHANNEL_BACKOFF_JITTER_PCT:25}
+      retry-batch-size: ${PUBLISHER_CHANNEL_RETRY_BATCH:40}

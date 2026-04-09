@@ -14,7 +14,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         PublisherRateLimitProperties.class,
         IntegrationAiProperties.class,
         PublisherRedisProperties.class,
-        PublisherPublicSiteProperties.class
+        PublisherPublicSiteProperties.class,
+        PublisherChannelDeliveryProperties.class
 })
 public class AppConfig {
 }

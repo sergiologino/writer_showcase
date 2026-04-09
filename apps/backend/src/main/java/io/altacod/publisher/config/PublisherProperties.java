@@ -15,6 +15,19 @@ public record PublisherProperties(JwtProperties jwt, CorsProperties cors) {
         }
     }
 
-    public record CorsProperties(List<String> allowedOrigins) {
+    /**
+     * @param allowedOrigins        точные origin (например продакшен HTTPS)
+     * @param allowedOriginPatterns паттерны Spring CORS (например {@code http://localhost:*} — любой порт)
+     */
+    public record CorsProperties(List<String> allowedOrigins, List<String> allowedOriginPatterns) {
+
+        public CorsProperties {
+            if (allowedOrigins == null) {
+                allowedOrigins = List.of();
+            }
+            if (allowedOriginPatterns == null) {
+                allowedOriginPatterns = List.of();
+            }
+        }
     }
 }

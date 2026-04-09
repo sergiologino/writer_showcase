@@ -78,6 +78,18 @@ public class UserEntity {
         this.displayName = displayName;
     }
 
+    public void setLocale(String locale) {
+        this.locale = locale;
+    }
+
+    public void setTimezone(String timezone) {
+        this.timezone = timezone;
+    }
+
+    public void setTheme(String theme) {
+        this.theme = theme;
+    }
+
     public String getLocale() {
         return locale;
     }

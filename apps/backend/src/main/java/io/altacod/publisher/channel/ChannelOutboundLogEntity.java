@@ -42,6 +42,15 @@ public class ChannelOutboundLogEntity {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
+    @Column(name = "attempt_count", nullable = false)
+    private int attemptCount;
+
+    @Column(name = "next_retry_at")
+    private Instant nextRetryAt;
+
+    @Column(name = "retryable", nullable = false)
+    private boolean retryable = true;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -62,8 +71,15 @@ public class ChannelOutboundLogEntity {
         this.channelType = channelType;
         this.status = status;
         this.errorMessage = errorMessage;
+        this.attemptCount = 0;
+        this.nextRetryAt = null;
+        this.retryable = true;
         this.createdAt = now;
         this.updatedAt = now;
+    }
+
+    public PostEntity getPost() {
+        return post;
     }
 
     public ChannelType getChannelType() {
@@ -74,15 +90,47 @@ public class ChannelOutboundLogEntity {
         return status;
     }
 
-    public void markFailed(String error, Instant now) {
-        this.status = ChannelDeliveryStatus.FAILED;
-        this.errorMessage = error;
-        this.updatedAt = now;
+    public int getAttemptCount() {
+        return attemptCount;
+    }
+
+    public Instant getNextRetryAt() {
+        return nextRetryAt;
+    }
+
+    public boolean isRetryable() {
+        return retryable;
     }
 
     public void markSent(Instant now) {
         this.status = ChannelDeliveryStatus.SENT;
         this.errorMessage = null;
+        this.attemptCount = 0;
+        this.nextRetryAt = null;
+        this.retryable = true;
+        this.updatedAt = now;
+    }
+
+    /**
+     * Ошибка без повторных попыток (невалидный конфиг, исчерпан лимит, пост снят с публикации).
+     */
+    public void markTerminalFailure(String error, Instant now) {
+        this.status = ChannelDeliveryStatus.FAILED;
+        this.errorMessage = error;
+        this.retryable = false;
+        this.nextRetryAt = null;
+        this.updatedAt = now;
+    }
+
+    /**
+     * Очередная неудачная попытка доставки; следующая — не раньше {@code nextRetryAt}.
+     */
+    public void markRetryableFailure(String error, Instant now, int newAttemptCount, Instant nextRetryAt) {
+        this.status = ChannelDeliveryStatus.FAILED;
+        this.errorMessage = error;
+        this.attemptCount = newAttemptCount;
+        this.nextRetryAt = nextRetryAt;
+        this.retryable = true;
         this.updatedAt = now;
     }
 }

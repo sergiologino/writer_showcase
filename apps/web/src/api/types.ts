@@ -13,6 +13,17 @@ export interface UserSummary {
   id: number
   email: string
   displayName: string
+  locale: string | null
+  timezone: string | null
+  /** Предпочитаемая тема в аккаунте; null — не задано (используйте переключатель в шапке). */
+  theme: 'light' | 'dark' | 'system' | null
+}
+
+export interface UpdateProfilePayload {
+  displayName: string
+  locale: string | null
+  timezone: string | null
+  theme: 'light' | 'dark' | 'system' | null
 }
 
 export interface WorkspaceSummary {

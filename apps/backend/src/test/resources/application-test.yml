@@ -21,7 +21,10 @@ publisher:
   rate-limit:
     enabled: false
   cors:
-    allowed-origins: http://localhost:5173
+    allowed-origin-patterns:
+      - "http://localhost:*"
+      - "http://127.0.0.1:*"
+    allowed-origins: []
   storage:
     local-root: ${STORAGE_LOCAL_ROOT:target/test-storage}
     max-upload-bytes: 1048576
@@ -31,3 +34,10 @@ publisher:
     base-url: ""
   channels:
     poll-delay-ms: 60000
+    retry-poll-ms: 60000
+    delivery:
+      max-attempts: 3
+      base-delay-seconds: 1
+      max-delay-seconds: 5
+      jitter-percent: 0
+      retry-batch-size: 10

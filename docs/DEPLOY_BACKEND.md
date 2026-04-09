@@ -12,7 +12,7 @@
 | `JWT_SECRET` | секрет подписи JWT, **длинная строка** | минимум 32+ байт для HS256 |
 | `JWT_ACCESS_TTL_MINUTES` | TTL access-токена | `60` |
 | `SERVER_PORT` | порт HTTP | `8080` |
-| `CORS_ORIGINS` | разрешённый origin фронта (один URL) | `https://app.example.com` |
+| `publisher.cors.*` (в `application.yml` / профиле) | CORS: по умолчанию паттерны `http://localhost:*` и `http://127.0.0.1:*`. Для продакшена задайте `publisher.cors.allowed-origins` (список точных URL) и при необходимости очистите `allowed-origin-patterns` | см. `application.yml` |
 
 Продакшен: задайте сильный `JWT_SECRET` и уникальные учётные данные БД.
 
@@ -38,7 +38,7 @@ npm run docker:up
 npm run docker:up:all
 ```
 
-(эквивалентно `docker compose --profile backend up -d --build`). API будет на **http://localhost:8080**, Postgres по-прежнему на **localhost:5432**. Для продакшена задайте `JWT_SECRET` и при необходимости `CORS_ORIGINS` в окружении хоста перед запуском compose.
+(эквивалентно `docker compose --profile backend up -d --build`). API будет на **http://localhost:8080**, Postgres по-прежнему на **localhost:5432**. Для продакшена задайте `JWT_SECRET` и настройте **`publisher.cors`** в профиле Spring (см. таблицу выше).
 
 **Вариант B — установленный PostgreSQL на машине:**
 
@@ -68,7 +68,7 @@ JAR: `apps/backend/target/publisher-api-0.0.1-SNAPSHOT.jar`.
 6. Вкладка **Environment variables**, пример:
 
    ```text
-   DATASOURCE_URL=jdbc:postgresql://localhost:5432/publisher;DATASOURCE_USERNAME=publisher;DATASOURCE_PASSWORD=publisher;JWT_SECRET=change-me-to-a-long-random-secret-string-min-32-chars;CORS_ORIGINS=http://localhost:5173
+   DATASOURCE_URL=jdbc:postgresql://localhost:5432/publisher;DATASOURCE_USERNAME=publisher;DATASOURCE_PASSWORD=publisher;JWT_SECRET=change-me-to-a-long-random-secret-string-min-32-chars
    ```
 
 7. Запуск: убедитесь, что Postgres слушает тот же хост/порт, что в `DATASOURCE_URL`.
@@ -112,7 +112,7 @@ Environment=DATASOURCE_URL=jdbc:postgresql://127.0.0.1:5432/publisher
 Environment=DATASOURCE_USERNAME=publisher
 Environment=DATASOURCE_PASSWORD=your-secret
 Environment=JWT_SECRET=your-long-jwt-secret
-Environment=CORS_ORIGINS=https://your-frontend-domain
+# CORS для продакшена — через publisher.cors в application.yml / профиле (см. таблицу переменных)
 ExecStart=/usr/bin/java -jar /opt/publisher-api/publisher-api.jar
 Restart=on-failure
 
@@ -161,7 +161,7 @@ Coolify разворачивает приложение из Git и/или Docke
 
 - Укажите порт контейнера **8080** (или задайте `SERVER_PORT` и проброс в Coolify).
 - Включите HTTPS через встроенный reverse proxy Coolify.
-- В `CORS_ORIGINS` укажите **точный** URL фронтенда (схема + хост, без лишнего слэша в конце).
+- В **`publisher.cors.allowed-origins`** укажите **точный** URL фронтенда (схема + хост + при необходимости порт; без лишнего слэша в конце) и при необходимости отключите шаблоны `localhost` в `allowed-origin-patterns`.
 
 ### 3.5. Обновление версии
 

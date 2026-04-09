@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.altacod.publisher.api.dto.LoginRequest;
 import io.altacod.publisher.api.dto.PostPayload;
 import io.altacod.publisher.api.dto.RegisterRequest;
+import io.altacod.publisher.api.dto.UpdateProfilePayload;
 import io.altacod.publisher.post.PostStatus;
 import io.altacod.publisher.post.PostVisibility;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -62,7 +64,22 @@ class AuthAndPostIntegrationTest {
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.workspaces[0].slug").exists())
+                .andExpect(jsonPath("$.user.theme").value("system"))
                 .andReturn();
+
+        mockMvc.perform(patch("/api/me")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UpdateProfilePayload(
+                                "Renamed Author",
+                                "ru",
+                                "Europe/Moscow",
+                                "dark"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.user.displayName").value("Renamed Author"))
+                .andExpect(jsonPath("$.user.locale").value("ru"))
+                .andExpect(jsonPath("$.user.theme").value("dark"));
 
         long workspaceId = objectMapper.readTree(me.getResponse().getContentAsString())
                 .path("workspaces").get(0).get("id").asLong();

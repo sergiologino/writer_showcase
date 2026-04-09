@@ -57,6 +57,18 @@ public class ChannelOutboundLogEntity {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "external_id", length = 256)
+    private String externalId;
+
+    @Column(name = "external_url", length = 2048)
+    private String externalUrl;
+
+    @Column(name = "metrics_json", columnDefinition = "TEXT")
+    private String metricsJson;
+
+    @Column(name = "metrics_fetched_at")
+    private Instant metricsFetchedAt;
+
     protected ChannelOutboundLogEntity() {
     }
 
@@ -78,6 +90,10 @@ public class ChannelOutboundLogEntity {
         this.updatedAt = now;
     }
 
+    public Long getId() {
+        return id;
+    }
+
     public PostEntity getPost() {
         return post;
     }
@@ -88,6 +104,10 @@ public class ChannelOutboundLogEntity {
 
     public ChannelDeliveryStatus getStatus() {
         return status;
+    }
+
+    public String getErrorMessage() {
+        return errorMessage;
     }
 
     public int getAttemptCount() {
@@ -102,13 +122,43 @@ public class ChannelOutboundLogEntity {
         return retryable;
     }
 
+    public String getExternalId() {
+        return externalId;
+    }
+
+    public String getExternalUrl() {
+        return externalUrl;
+    }
+
+    public String getMetricsJson() {
+        return metricsJson;
+    }
+
+    public Instant getMetricsFetchedAt() {
+        return metricsFetchedAt;
+    }
+
     public void markSent(Instant now) {
+        markSent(now, null, null);
+    }
+
+    public void markSent(Instant now, String externalId, String externalUrl) {
         this.status = ChannelDeliveryStatus.SENT;
         this.errorMessage = null;
         this.attemptCount = 0;
         this.nextRetryAt = null;
         this.retryable = true;
+        this.externalId = externalId;
+        this.externalUrl = externalUrl;
+        this.metricsJson = null;
+        this.metricsFetchedAt = null;
         this.updatedAt = now;
+    }
+
+    public void setMetricsSnapshot(String metricsJson, Instant metricsFetchedAt) {
+        this.metricsJson = metricsJson;
+        this.metricsFetchedAt = metricsFetchedAt;
+        this.updatedAt = metricsFetchedAt;
     }
 
     /**

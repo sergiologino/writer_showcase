@@ -1,5 +1,6 @@
 package io.altacod.publisher.api.dto;
 
+import io.altacod.publisher.channel.ChannelType;
 import io.altacod.publisher.post.PostStatus;
 import io.altacod.publisher.post.PostVisibility;
 import jakarta.validation.constraints.NotBlank;
@@ -19,6 +20,13 @@ public record PostPayload(
         Long categoryId,
         List<Long> tagIds,
         Boolean aiGenerated,
-        List<Long> mediaAssetIds
+        List<Long> mediaAssetIds,
+        /** null — не менять (update) или по умолчанию true (create). */
+        Boolean socialPublishEnabled,
+        /**
+         * Явный список каналов для кросс-поста. null или пустой список при {@code socialPublishEnabled != false} —
+         * все включённые каналы workspace. Непустой — только перечисленные (ВК, ОК и т.д.).
+         */
+        List<ChannelType> publishChannels
 ) {
 }

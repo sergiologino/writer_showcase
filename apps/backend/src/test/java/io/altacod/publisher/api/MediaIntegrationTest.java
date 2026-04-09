@@ -92,7 +92,9 @@ class MediaIntegrationTest {
                 null,
                 List.of(),
                 false,
-                List.of(mediaId)
+                List.of(mediaId),
+                null,
+                null
         );
 
         mockMvc.perform(post("/api/posts")

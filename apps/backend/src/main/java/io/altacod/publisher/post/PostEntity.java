@@ -81,6 +81,9 @@ public class PostEntity {
     @Column(name = "published_at")
     private Instant publishedAt;
 
+    @Column(name = "social_publish_enabled", nullable = false)
+    private boolean socialPublishEnabled = true;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "post_tags",
@@ -185,6 +188,14 @@ public class PostEntity {
 
     public void setPublishedAt(Instant publishedAt) {
         this.publishedAt = publishedAt;
+    }
+
+    public boolean isSocialPublishEnabled() {
+        return socialPublishEnabled;
+    }
+
+    public void setSocialPublishEnabled(boolean socialPublishEnabled) {
+        this.socialPublishEnabled = socialPublishEnabled;
     }
 
     public Set<TagEntity> getTags() {

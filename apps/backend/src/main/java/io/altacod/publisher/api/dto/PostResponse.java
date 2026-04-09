@@ -1,5 +1,6 @@
 package io.altacod.publisher.api.dto;
 
+import io.altacod.publisher.channel.ChannelType;
 import io.altacod.publisher.post.PostStatus;
 import io.altacod.publisher.post.PostVisibility;
 
@@ -21,6 +22,10 @@ public record PostResponse(
         List<PostMediaAttachmentDto> media,
         Instant createdAt,
         Instant updatedAt,
-        Instant publishedAt
+        Instant publishedAt,
+        boolean socialPublishEnabled,
+        /** Явно выбранные каналы; пустой список при включённой соцпубликации означает «все каналы workspace». */
+        List<ChannelType> publishChannelTypes,
+        List<PostOutboundInfoDto> outbound
 ) {
 }

@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.Iterator;
 import java.util.List;
 
 @Service
@@ -50,13 +51,18 @@ public class ChannelService {
         validateJson(payload.configJson());
         Instant now = Instant.now();
         var existing = channelRepository.findByWorkspaceIdAndChannelType(workspaceId, type);
+        String baseJson = existing.map(WorkspaceChannelEntity::getConfigJson).orElse("{}");
+        if (baseJson.isBlank()) {
+            baseJson = "{}";
+        }
+        String mergedConfig = mergeConfigJson(baseJson, payload.configJson());
         if (existing.isEmpty()) {
             var entity = new WorkspaceChannelEntity(
                     ws,
                     type,
                     Boolean.TRUE.equals(payload.enabled()),
                     blankToNull(payload.label()),
-                    payload.configJson(),
+                    mergedConfig,
                     now
             );
             channelRepository.save(entity);
@@ -66,11 +72,41 @@ public class ChannelService {
         e.update(
                 Boolean.TRUE.equals(payload.enabled()),
                 blankToNull(payload.label()),
-                payload.configJson(),
+                mergedConfig,
                 now
         );
         channelRepository.save(e);
         return toResponse(e);
+    }
+
+    /**
+     * Пустые строки, {@code null} и маска {@code ***} в patch не перезаписывают уже сохранённые секреты.
+     */
+    private String mergeConfigJson(String existingJson, String patchJson) {
+        try {
+            ObjectNode base = (ObjectNode) objectMapper.readTree(
+                    existingJson == null || existingJson.isBlank() ? "{}" : existingJson);
+            ObjectNode patch = (ObjectNode) objectMapper.readTree(patchJson);
+            Iterator<String> names = patch.fieldNames();
+            while (names.hasNext()) {
+                String key = names.next();
+                JsonNode v = patch.get(key);
+                if (v == null || v.isNull()) {
+                    base.remove(key);
+                    continue;
+                }
+                if (v.isTextual()) {
+                    String t = v.asText();
+                    if (t.isEmpty() || "***".equals(t)) {
+                        continue;
+                    }
+                }
+                base.set(key, v);
+            }
+            return objectMapper.writeValueAsString(base);
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid channel config merge");
+        }
     }
 
     @Transactional

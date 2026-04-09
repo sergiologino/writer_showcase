@@ -1,9 +1,18 @@
 package io.altacod.publisher.api;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.altacod.publisher.api.dto.PostMediaAttachmentDto;
+import io.altacod.publisher.api.dto.PostOutboundInfoDto;
 import io.altacod.publisher.api.dto.PostPayload;
 import io.altacod.publisher.api.dto.PostResponse;
 import io.altacod.publisher.api.dto.TagSummaryDto;
+import io.altacod.publisher.channel.ChannelDeliveryStatus;
+import io.altacod.publisher.channel.ChannelOutboundLogEntity;
+import io.altacod.publisher.channel.ChannelOutboundLogRepository;
+import io.altacod.publisher.channel.ChannelType;
+import io.altacod.publisher.channel.PostChannelTargetEntity;
+import io.altacod.publisher.channel.PostChannelTargetRepository;
 import io.altacod.publisher.media.MediaAssetEntity;
 import io.altacod.publisher.media.MediaAssetRepository;
 import io.altacod.publisher.media.PostMediaEntity;
@@ -36,6 +45,7 @@ import java.time.Instant;
 import java.util.Locale;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -54,6 +64,9 @@ public class PostService {
     private final PostMediaRepository postMediaRepository;
     private final MediaAssetRepository mediaAssetRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final PostChannelTargetRepository postChannelTargetRepository;
+    private final ChannelOutboundLogRepository channelOutboundLogRepository;
+    private final ObjectMapper objectMapper;
 
     public PostService(
             PostRepository postRepository,
@@ -63,7 +76,10 @@ public class PostService {
             TagRepository tagRepository,
             PostMediaRepository postMediaRepository,
             MediaAssetRepository mediaAssetRepository,
-            ApplicationEventPublisher eventPublisher
+            ApplicationEventPublisher eventPublisher,
+            PostChannelTargetRepository postChannelTargetRepository,
+            ChannelOutboundLogRepository channelOutboundLogRepository,
+            ObjectMapper objectMapper
     ) {
         this.postRepository = postRepository;
         this.workspaceRepository = workspaceRepository;
@@ -73,6 +89,9 @@ public class PostService {
         this.postMediaRepository = postMediaRepository;
         this.mediaAssetRepository = mediaAssetRepository;
         this.eventPublisher = eventPublisher;
+        this.postChannelTargetRepository = postChannelTargetRepository;
+        this.channelOutboundLogRepository = channelOutboundLogRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -107,6 +126,7 @@ public class PostService {
 
         postRepository.save(post);
         applyPostMedia(post, workspaceId, payload.mediaAssetIds());
+        applySocialAndTargets(post, payload, true);
         if (payload.status() == PostStatus.PUBLISHED && payload.visibility() == PostVisibility.PUBLIC) {
             eventPublisher.publishEvent(new PostPublishedEvent(post.getId()));
         }
@@ -122,7 +142,15 @@ public class PostService {
                 pageable.getPageSize(),
                 Sort.by(Sort.Direction.DESC, "updatedAt")
         );
-        return postRepository.findWorkspaceFeed(workspaceId, status, qPattern, sorted).map(this::toResponse);
+        Page<PostEntity> page = postRepository.findWorkspaceFeed(workspaceId, status, qPattern, sorted);
+        List<Long> ids = page.getContent().stream().map(PostEntity::getId).toList();
+        Map<Long, List<ChannelType>> targetsByPost = loadTargetsByPostIds(ids);
+        Map<Long, List<ChannelOutboundLogEntity>> logsByPost = loadLogsByPostIds(ids);
+        return page.map(p -> toResponse(
+                p,
+                targetsByPost.getOrDefault(p.getId(), List.of()),
+                logsByPost.getOrDefault(p.getId(), List.of())
+        ));
     }
 
     @Transactional(readOnly = true)
@@ -164,6 +192,7 @@ public class PostService {
         applyCategory(post, workspaceId, payload.categoryId());
         applyTags(post, workspaceId, payload.tagIds());
         applyPostMedia(post, workspaceId, payload.mediaAssetIds());
+        applySocialAndTargets(post, payload, false);
 
         boolean wasPublishedPublic =
                 previous == PostStatus.PUBLISHED && previousVisibility == PostVisibility.PUBLIC;
@@ -244,7 +273,62 @@ public class PostService {
         return base + "-" + System.currentTimeMillis();
     }
 
+    private void applySocialAndTargets(PostEntity post, PostPayload payload, boolean isCreate) {
+        if (payload.socialPublishEnabled() != null) {
+            post.setSocialPublishEnabled(payload.socialPublishEnabled());
+        } else if (isCreate) {
+            post.setSocialPublishEnabled(true);
+        }
+        boolean socialFieldsTouched =
+                isCreate
+                        || payload.socialPublishEnabled() != null
+                        || payload.publishChannels() != null;
+        if (!socialFieldsTouched) {
+            return;
+        }
+        postChannelTargetRepository.deleteByPost_Id(post.getId());
+        if (!post.isSocialPublishEnabled()) {
+            return;
+        }
+        List<ChannelType> pc = payload.publishChannels();
+        if (pc == null || pc.isEmpty()) {
+            return;
+        }
+        for (ChannelType t : pc) {
+            postChannelTargetRepository.save(new PostChannelTargetEntity(post, t));
+        }
+    }
+
+    private Map<Long, List<ChannelType>> loadTargetsByPostIds(List<Long> postIds) {
+        if (postIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, List<ChannelType>> m = new HashMap<>();
+        for (var row : postChannelTargetRepository.findRowsByPostIdIn(postIds)) {
+            m.computeIfAbsent(row.getPostId(), k -> new ArrayList<>()).add(row.getChannelType());
+        }
+        return m;
+    }
+
+    private Map<Long, List<ChannelOutboundLogEntity>> loadLogsByPostIds(List<Long> postIds) {
+        if (postIds.isEmpty()) {
+            return Map.of();
+        }
+        return channelOutboundLogRepository.findByPost_IdIn(postIds).stream()
+                .collect(Collectors.groupingBy(l -> l.getPost().getId()));
+    }
+
     private PostResponse toResponse(PostEntity post) {
+        List<ChannelType> targets = postChannelTargetRepository.findChannelTypesByPostId(post.getId());
+        List<ChannelOutboundLogEntity> logs = channelOutboundLogRepository.findByPost_Id(post.getId());
+        return toResponse(post, targets, logs);
+    }
+
+    private PostResponse toResponse(
+            PostEntity post,
+            List<ChannelType> publishChannelTypes,
+            List<ChannelOutboundLogEntity> outboundLogs
+    ) {
         List<TagSummaryDto> tags = post.getTags().stream()
                 .sorted(Comparator.comparing(TagEntity::getName, String.CASE_INSENSITIVE_ORDER))
                 .map(t -> new TagSummaryDto(t.getId(), t.getName(), t.getSlug()))
@@ -259,6 +343,10 @@ public class PostService {
                 ))
                 .toList();
         Long categoryId = post.getCategory() == null ? null : post.getCategory().getId();
+        List<PostOutboundInfoDto> outbound = outboundLogs.stream()
+                .sorted(Comparator.comparing(l -> l.getChannelType().name()))
+                .map(this::toOutboundInfo)
+                .toList();
         return new PostResponse(
                 post.getId(),
                 post.getTitle(),
@@ -274,7 +362,43 @@ public class PostService {
                 media,
                 post.getCreatedAt(),
                 post.getUpdatedAt(),
-                post.getPublishedAt()
+                post.getPublishedAt(),
+                post.isSocialPublishEnabled(),
+                publishChannelTypes,
+                outbound
+        );
+    }
+
+    private PostOutboundInfoDto toOutboundInfo(ChannelOutboundLogEntity log) {
+        long likes = 0;
+        long reposts = 0;
+        long views = 0;
+        long comments = 0;
+        long shares = 0;
+        String mj = log.getMetricsJson();
+        if (mj != null && !mj.isBlank()) {
+            try {
+                JsonNode n = objectMapper.readTree(mj);
+                likes = n.path("likes").asLong(0);
+                reposts = n.path("reposts").asLong(0);
+                views = n.path("views").asLong(0);
+                comments = n.path("comments").asLong(0);
+                shares = n.path("shares").asLong(0);
+            } catch (Exception ignored) {
+                // keep zeros
+            }
+        }
+        return new PostOutboundInfoDto(
+                log.getChannelType(),
+                log.getStatus(),
+                log.getExternalUrl(),
+                log.getStatus() == ChannelDeliveryStatus.FAILED ? log.getErrorMessage() : null,
+                log.getMetricsFetchedAt(),
+                likes,
+                reposts,
+                views,
+                comments,
+                shares
         );
     }
 }

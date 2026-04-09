@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { PageDto, PostResponse, PostStatus, PostVisibility } from './types'
+import type { ChannelType, PageDto, PostResponse, PostStatus, PostVisibility } from './types'
 
 export function fetchPostPage(params: {
   status?: PostStatus
@@ -35,6 +35,9 @@ export interface PostPayload {
   tagIds: number[]
   aiGenerated: boolean
   mediaAssetIds: number[]
+  socialPublishEnabled?: boolean
+  /** Явный список каналов; при включённой соцпубликации пустой массив = все каналы workspace. */
+  publishChannels?: ChannelType[] | null
 }
 
 export function createPost(payload: PostPayload): Promise<PostResponse> {

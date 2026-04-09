@@ -52,6 +52,22 @@ export interface PostMediaAttachment {
   caption: string | null
 }
 
+/** Каналы кросс-постинга (совпадает с бэкендом `ChannelType`). */
+export type ChannelType = 'TELEGRAM' | 'VK' | 'ODNOKLASSNIKI'
+
+export interface PostOutboundInfo {
+  channelType: ChannelType
+  deliveryStatus: 'SENT' | 'FAILED' | string
+  externalUrl: string | null
+  lastError: string | null
+  metricsFetchedAt: string | null
+  likes: number
+  reposts: number
+  views: number
+  comments: number
+  shares: number
+}
+
 export interface PostResponse {
   id: number
   title: string
@@ -68,6 +84,10 @@ export interface PostResponse {
   createdAt: string
   updatedAt: string
   publishedAt: string | null
+  socialPublishEnabled: boolean
+  /** Пустой массив при включённой соцпубликации = все каналы workspace. */
+  publishChannelTypes: ChannelType[]
+  outbound: PostOutboundInfo[]
 }
 
 export interface PageDto<T> {

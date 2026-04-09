@@ -2,8 +2,17 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { fetchPostPage } from '../api/posts'
-import type { PostStatus } from '../api/types'
+import type { ChannelType, PostStatus } from '../api/types'
 import { useState } from 'react'
+
+function channelShort(t: ChannelType): string {
+  const m: Record<ChannelType, string> = {
+    TELEGRAM: 'TG',
+    VK: 'ВК',
+    ODNOKLASSNIKI: 'ОК',
+  }
+  return m[t] ?? t
+}
 
 const statusLabel: Record<PostStatus, string> = {
   DRAFT: 'Черновик',
@@ -88,6 +97,29 @@ export function FeedPage() {
                 <h2 className="mt-2 text-lg font-medium text-[var(--text)]">{post.title}</h2>
                 {post.excerpt ? (
                   <p className="mt-2 line-clamp-2 text-sm text-[var(--muted)]">{post.excerpt}</p>
+                ) : null}
+                {(post.outbound?.length ?? 0) > 0 ? (
+                  <ul className="mt-3 flex flex-wrap gap-2 text-[11px] text-[var(--muted)]">
+                    {(post.outbound ?? []).map((o) => (
+                      <li
+                        key={o.channelType}
+                        className="rounded border border-[var(--border)] bg-[var(--bg)] px-2 py-1"
+                      >
+                        <span className="font-medium text-[var(--text)]">{channelShort(o.channelType)}</span>
+                        {o.deliveryStatus === 'SENT' ? (
+                          <span className="ml-1 text-emerald-600 dark:text-emerald-400">✓</span>
+                        ) : (
+                          <span className="ml-1 text-amber-600 dark:text-amber-400">!</span>
+                        )}
+                        {o.deliveryStatus === 'SENT' && (o.views > 0 || o.likes > 0) ? (
+                          <span className="ml-1 opacity-90">
+                            👁 {o.views} · ♥ {o.likes}
+                            {o.reposts > 0 ? ` · ↻ ${o.reposts}` : ''}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
                 ) : null}
               </Link>
             </li>

@@ -1,12 +1,22 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
+import { fetchWorkspaceChannels } from '../api/channels'
 import { fetchMediaPage } from '../api/media'
 import { createPost, fetchPost, updatePost, type PostPayload } from '../api/posts'
-import type { PostStatus, PostVisibility } from '../api/types'
+import type { ChannelType, PostStatus, PostVisibility } from '../api/types'
+
+function channelLabel(t: ChannelType): string {
+  const m: Record<ChannelType, string> = {
+    TELEGRAM: 'Telegram',
+    VK: 'ВКонтакте',
+    ODNOKLASSNIKI: 'Одноклассники',
+  }
+  return m[t] ?? t
+}
 
 const schema = z.object({
   title: z.string().min(1, 'Заголовок обязателен').max(500),
@@ -47,7 +57,19 @@ export function PostEditorPage() {
     queryFn: () => fetchMediaPage(0, 40),
   })
 
+  const channelsQ = useQuery({
+    queryKey: ['channels'],
+    queryFn: fetchWorkspaceChannels,
+  })
+
   const [mediaIds, setMediaIds] = useState<number[]>([])
+  const [socialPublish, setSocialPublish] = useState(true)
+  const [channelOn, setChannelOn] = useState<Record<string, boolean>>({})
+
+  const enabledWorkspaceChannels = useMemo(
+    () => (channelsQ.data ?? []).filter((c) => c.enabled),
+    [channelsQ.data],
+  )
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -69,6 +91,31 @@ export function PostEditorPage() {
     }
   }, [existing.data, form])
 
+  useEffect(() => {
+    if (!channelsQ.data) {
+      return
+    }
+    const enabled = channelsQ.data.filter((c) => c.enabled)
+    if (!isNew && existing.data) {
+      setSocialPublish(existing.data.socialPublishEnabled ?? true)
+      const pub = existing.data.publishChannelTypes ?? []
+      const o: Record<string, boolean> = {}
+      for (const c of enabled) {
+        o[c.channelType] = pub.length === 0 ? true : pub.includes(c.channelType)
+      }
+      setChannelOn(o)
+      return
+    }
+    if (isNew) {
+      setSocialPublish(true)
+      const o: Record<string, boolean> = {}
+      for (const c of enabled) {
+        o[c.channelType] = true
+      }
+      setChannelOn(o)
+    }
+  }, [channelsQ.data, existing.data, isNew])
+
   const mutation = useMutation({
     mutationFn: async (values: FormValues) => {
       const inPickerOrder = (mediaPicker.data?.content ?? [])
@@ -76,6 +123,26 @@ export function PostEditorPage() {
         .filter((id) => mediaIds.includes(id))
       const orderedMedia =
         inPickerOrder.length === mediaIds.length ? inPickerOrder : [...mediaIds]
+
+      let socialPublishEnabled = socialPublish
+      let publishChannels: ChannelType[] | null = null
+      const enList = enabledWorkspaceChannels
+      if (!socialPublish) {
+        socialPublishEnabled = false
+        publishChannels = null
+      } else {
+        socialPublishEnabled = true
+        const selected = enList.filter((c) => channelOn[c.channelType])
+        if (enList.length > 0 && selected.length === 0) {
+          socialPublishEnabled = false
+          publishChannels = null
+        } else if (enList.length === 0 || selected.length === enList.length) {
+          publishChannels = []
+        } else {
+          publishChannels = selected.map((c) => c.channelType)
+        }
+      }
+
       const payload: PostPayload = {
         title: values.title,
         slug: values.slug?.trim() ?? '',
@@ -88,6 +155,8 @@ export function PostEditorPage() {
         tagIds: [],
         aiGenerated: false,
         mediaAssetIds: orderedMedia,
+        socialPublishEnabled,
+        publishChannels,
       }
       if (isNew) {
         return createPost(payload)
@@ -97,6 +166,7 @@ export function PostEditorPage() {
     onSuccess: async (post) => {
       await qc.invalidateQueries({ queryKey: ['posts'] })
       await qc.refetchQueries({ queryKey: ['posts'] })
+      await qc.invalidateQueries({ queryKey: ['post', String(post.id)] })
       navigate(`/app/posts/${post.id}`)
     },
   })
@@ -208,6 +278,106 @@ export function PostEditorPage() {
                 })}
               </ul>
             )}
+          </div>
+
+          <div className="space-y-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={socialPublish}
+                onChange={(e) => setSocialPublish(e.target.checked)}
+              />
+              Публиковать в подключённые соцсети при выпуске (ВК, ОК, Telegram…)
+            </label>
+            {channelsQ.isLoading ? (
+              <p className="text-xs text-[var(--muted)]">Каналы workspace…</p>
+            ) : enabledWorkspaceChannels.length === 0 ? (
+              <p className="text-xs text-[var(--muted)]">
+                В workspace пока нет включённых каналов. Настройте их в разделе{' '}
+                <Link className="text-[var(--accent)] hover:underline" to="/app/channels">
+                  «Каналы публикации»
+                </Link>{' '}
+                (пошаговые инструкции и поля без JSON).
+              </p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {enabledWorkspaceChannels.map((c) => (
+                  <li key={c.channelType}>
+                    <label className="flex cursor-pointer items-center gap-2">
+                      <input
+                        type="checkbox"
+                        disabled={!socialPublish}
+                        checked={!!channelOn[c.channelType]}
+                        onChange={(e) => {
+                          setChannelOn((prev) => ({
+                            ...prev,
+                            [c.channelType]: e.target.checked,
+                          }))
+                        }}
+                      />
+                      {channelLabel(c.channelType)}
+                      {c.label ? (
+                        <span className="text-xs text-[var(--muted)]">({c.label})</span>
+                      ) : null}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="text-xs text-[var(--muted)]">
+              Снятые каналы не получают материал даже при статусе «Опубликован» и публичной видимости. Пустой выбор при
+              включённом пункте выше трактуется как «все каналы». Кросс-пост выполняется один раз при первом переводе в
+              опубликованный публичный пост.
+            </p>
+            {!isNew && existing.data && (existing.data.outbound?.length ?? 0) > 0 ? (
+              <div className="mt-2 border-t border-[var(--border)] pt-3">
+                <p className="text-sm font-medium">Статус публикации на площадках</p>
+                <ul className="mt-2 space-y-2 text-xs">
+                  {(existing.data.outbound ?? []).map((o) => (
+                    <li key={o.channelType} className="rounded-md border border-[var(--border)] bg-[var(--surface)] p-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium">{channelLabel(o.channelType)}</span>
+                        <span
+                          className={
+                            o.deliveryStatus === 'SENT'
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-amber-600 dark:text-amber-400'
+                          }
+                        >
+                          {o.deliveryStatus}
+                        </span>
+                        {o.externalUrl ? (
+                          <a
+                            className="text-[var(--accent)] hover:underline"
+                            href={o.externalUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Открыть
+                          </a>
+                        ) : null}
+                      </div>
+                      {o.lastError ? (
+                        <p className="mt-1 text-red-600 dark:text-red-400">{o.lastError}</p>
+                      ) : null}
+                      {o.deliveryStatus === 'SENT' ? (
+                        <p className="mt-1 text-[var(--muted)]">
+                          Лайки {o.likes} · Репосты {o.reposts} · Просмотры {o.views}
+                          {o.comments > 0 ? ` · Комментарии ${o.comments}` : ''}
+                          {o.metricsFetchedAt ? (
+                            <span className="block opacity-80">
+                              метрики: {new Date(o.metricsFetchedAt).toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="block opacity-80">метрики обновляются автоматически (ВК)</span>
+                          )}
+                        </p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">

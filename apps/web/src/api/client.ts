@@ -2,6 +2,11 @@ const getWorkspaceId = (): string | null => localStorage.getItem('workspaceId')
 
 const getToken = (): string | null => localStorage.getItem('accessToken')
 
+/** Для превью медиа и др. вне apiFetch. */
+export function getStoredAccessToken(): string | null {
+  return localStorage.getItem('accessToken')
+}
+
 /**
  * Собирает URL запроса к API.
  * `baseUrl` — для тестов; в приложении не передаётся (берётся `import.meta.env.VITE_API_BASE_URL`).
@@ -103,7 +108,12 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, isRetry 
 
   const res = await fetch(url, { ...init, headers })
 
-  if (res.status === 401 && !isRetry && token && !path.startsWith('/api/auth/')) {
+  if (
+    (res.status === 401 || res.status === 403) &&
+    !isRetry &&
+    token &&
+    !path.startsWith('/api/auth/')
+  ) {
     const refreshed = await tryRefreshAccessToken()
     if (refreshed) {
       return apiFetch<T>(path, init, true)

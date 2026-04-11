@@ -5,21 +5,30 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.altacod.publisher.channel.ChannelDeliveryStatus;
+import io.altacod.publisher.channel.ChannelErrorSanitizer;
 import io.altacod.publisher.channel.ChannelOutboundLogEntity;
 import io.altacod.publisher.channel.ChannelOutboundLogRepository;
 import io.altacod.publisher.channel.ChannelType;
 import io.altacod.publisher.channel.PostChannelTargetRepository;
 import io.altacod.publisher.channel.WorkspaceChannelEntity;
 import io.altacod.publisher.channel.WorkspaceChannelRepository;
+import io.altacod.publisher.api.MediaService;
+import io.altacod.publisher.config.OutboundRestClientConfig;
 import io.altacod.publisher.config.PublisherChannelDeliveryProperties;
 import io.altacod.publisher.config.PublisherPublicSiteProperties;
+import io.altacod.publisher.media.MediaAssetEntity;
+import io.altacod.publisher.media.PostMediaEntity;
+import io.altacod.publisher.media.PostMediaRepository;
 import io.altacod.publisher.post.PostEntity;
 import io.altacod.publisher.post.PostRepository;
 import io.altacod.publisher.post.PostStatus;
 import io.altacod.publisher.post.PostVisibility;
+import io.altacod.publisher.text.HtmlPlainText;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
@@ -28,11 +37,19 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.ConnectException;
+import java.net.UnknownHostException;
+import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
+import java.net.http.HttpTimeoutException;
 import java.util.HexFormat;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.ThreadLocalRandom;
@@ -43,6 +60,10 @@ public class ChannelDispatchService {
     private static final Logger log = LoggerFactory.getLogger(ChannelDispatchService.class);
 
     private static final int MAX_MESSAGE_LEN = 3800;
+    /** Лимит подписи к фото/альбому в Telegram Bot API. */
+    private static final int TELEGRAM_CAPTION_MAX = 1024;
+    /** Превью тела статьи для ВК/ОК (символов plain text). */
+    private static final int CHANNEL_BODY_PREVIEW_CHARS = 3200;
     private static final int MAX_ERR_DB = 2000;
     private static final String VK_API = "https://api.vk.com/method/wall.post";
     private static final String VK_GET = "https://api.vk.com/method/wall.getById";
@@ -55,7 +76,9 @@ public class ChannelDispatchService {
     private final PublisherPublicSiteProperties publicSite;
     private final PublisherChannelDeliveryProperties deliveryProps;
     private final ObjectMapper objectMapper;
-    private final RestClient http = RestClient.create();
+    private final RestClient http;
+    private final PostMediaRepository postMediaRepository;
+    private final MediaService mediaService;
 
     public ChannelDispatchService(
             PostRepository postRepository,
@@ -64,7 +87,10 @@ public class ChannelDispatchService {
             PostChannelTargetRepository postChannelTargetRepository,
             PublisherPublicSiteProperties publicSite,
             PublisherChannelDeliveryProperties deliveryProps,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            PostMediaRepository postMediaRepository,
+            MediaService mediaService,
+            @Qualifier(OutboundRestClientConfig.OUTBOUND_REST_CLIENT) RestClient outboundRestClient
     ) {
         this.postRepository = postRepository;
         this.channelRepository = channelRepository;
@@ -73,6 +99,9 @@ public class ChannelDispatchService {
         this.publicSite = publicSite;
         this.deliveryProps = deliveryProps;
         this.objectMapper = objectMapper;
+        this.postMediaRepository = postMediaRepository;
+        this.mediaService = mediaService;
+        this.http = outboundRestClient;
     }
 
     @Transactional
@@ -103,8 +132,18 @@ public class ChannelDispatchService {
                     default -> log.debug("Unsupported channel type: {}", ch.getChannelType());
                 }
             } catch (Exception e) {
-                log.warn("Channel {} publish failed for post {}", ch.getChannelType(), postId, e);
-                recordFailureRetryable(post, ch.getChannelType(), e.getMessage(), now);
+                log.warn(
+                        "Channel {} publish failed for post {}: {}",
+                        ch.getChannelType(),
+                        postId,
+                        ChannelErrorSanitizer.sanitizeThrowableChainForLog(e)
+                );
+                String errMsg = userFacingErrorMessage(e);
+                if (isModerationRejection(errMsg)) {
+                    recordModerationRejected(post, ch.getChannelType(), errMsg, now);
+                } else {
+                    recordFailureRetryable(post, ch.getChannelType(), errMsg, now);
+                }
             }
         }
     }
@@ -145,8 +184,18 @@ public class ChannelDispatchService {
                 default -> log.debug("Unsupported channel type: {}", type);
             }
         } catch (Exception e) {
-            log.warn("Channel {} retry failed for post {}", type, postId, e);
-            recordFailureRetryable(post, type, e.getMessage(), now);
+            log.warn(
+                    "Channel {} retry failed for post {}: {}",
+                    type,
+                    postId,
+                    ChannelErrorSanitizer.sanitizeThrowableChainForLog(e)
+            );
+            String errMsg = userFacingErrorMessage(e);
+            if (isModerationRejection(errMsg)) {
+                recordModerationRejected(post, type, errMsg, now);
+            } else {
+                recordFailureRetryable(post, type, errMsg, now);
+            }
         }
     }
 
@@ -157,6 +206,57 @@ public class ChannelDispatchService {
             return true;
         }
         return targets.contains(type);
+    }
+
+    /**
+     * Текст для UI/БД: приоритет у {@code getMessage()}, иначе эвристика по сетевым причинам.
+     */
+    private static String userFacingErrorMessage(Exception e) {
+        if (e.getMessage() != null && !e.getMessage().isBlank()) {
+            return ChannelErrorSanitizer.stripSecrets(e.getMessage());
+        }
+        String hinted = describeAnyNetworkFailure(e);
+        if (hinted != null) {
+            return hinted;
+        }
+        return e.getClass().getSimpleName();
+    }
+
+    private static String describeAnyNetworkFailure(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof ConnectException || t instanceof ClosedChannelException) {
+                return "Не удалось подключиться к внешнему API (исходящий HTTPS/443: фаервол, прокси, блокировка или нет маршрута)";
+            }
+            if (t instanceof UnknownHostException) {
+                return "Не удаётся разрешить имя хоста (DNS). Проверьте сеть";
+            }
+            if (t instanceof HttpTimeoutException) {
+                return "Таймаут сетевого запроса к внешнему API";
+            }
+        }
+        return null;
+    }
+
+    private static String describeTelegramNetworkFailure(RestClientException e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof ConnectException || t instanceof ClosedChannelException) {
+                return "не удалось установить соединение с api.telegram.org:443. "
+                        + "С машины, где запущен backend, нужен исходящий HTTPS; проверьте фаервол, антивирус, "
+                        + "корпоративный прокси (для Java: -Dhttps.proxyHost / -Dhttps.proxyPort) или доступность Telegram";
+            }
+            if (t instanceof UnknownHostException) {
+                return "не удаётся разрешить имя api.telegram.org (DNS)";
+            }
+            if (t instanceof HttpTimeoutException) {
+                return "таймаут при обращении к api.telegram.org";
+            }
+        }
+        String m = e.getMessage();
+        if (m == null || m.isBlank() || "null".equalsIgnoreCase(m.trim())) {
+            return e.getClass().getSimpleName()
+                    + " (сеть или api.telegram.org недоступен с сервера приложения)";
+        }
+        return ChannelErrorSanitizer.stripSecrets(m);
     }
 
     private void sendTelegram(PostEntity post, WorkspaceChannelEntity ch, Instant now) throws Exception {
@@ -172,29 +272,205 @@ public class ChannelDispatchService {
             recordFailureTerminal(post, ChannelType.TELEGRAM, "Missing botToken or chatId in channel config", now);
             return;
         }
-        String text = buildMessage(post);
-        ObjectNode body = objectMapper.createObjectNode();
-        body.put("chat_id", chatId);
-        body.put("text", text);
-        body.put("disable_web_page_preview", true);
+        List<TelegramImage> images = loadTelegramImages(post);
+        String caption = buildTelegramCaption(post);
+        if (images.isEmpty()) {
+            String text = buildChannelMessage(post);
+            ObjectNode body = objectMapper.createObjectNode();
+            body.put("chat_id", chatId);
+            body.put("text", text);
+            body.put("disable_web_page_preview", true);
 
-        String url = "https://api.telegram.org/bot" + token.trim() + "/sendMessage";
+            String sendUrl = "https://api.telegram.org/bot" + token.trim() + "/sendMessage";
+            String raw;
+            try {
+                raw = http.post()
+                        .uri(sendUrl)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(objectMapper.writeValueAsString(body))
+                        .retrieve()
+                        .body(String.class);
+            } catch (RestClientException e) {
+                String detail = describeTelegramNetworkFailure(e);
+                throw new IllegalStateException("Telegram HTTP: " + detail, e);
+            }
+            JsonNode root = objectMapper.readTree(raw == null ? "{}" : raw);
+            if (!root.path("ok").asBoolean(false)) {
+                throw new IllegalStateException("Telegram API: " + truncateError(raw));
+            }
+        } else {
+            sendTelegramImagesWithCaption(token, chatId, images, caption);
+        }
+        upsertSuccess(post, ChannelType.TELEGRAM, now, null, null);
+    }
+
+    /**
+     * Текст подписи: заголовок + сокращённое тело + ссылка «Читать дальше» (в пределах лимита Telegram).
+     */
+    private String buildTelegramCaption(PostEntity post) {
+        String title = post.getTitle() == null ? "" : post.getTitle().trim();
+        String url = buildPublicUrl(post);
+        String linkBlock = (url != null && !url.isBlank()) ? "\n\nЧитать дальше:\n" + url : "";
+        int linkLen = linkBlock.length();
+        int maxTotal = TELEGRAM_CAPTION_MAX;
+        int headBudget = maxTotal - linkLen;
+        if (headBudget < 40) {
+            linkBlock = "";
+            headBudget = maxTotal;
+        }
+        String bodyPlain = HtmlPlainText.toPlain(post.getBodyHtml(), Math.max(120, headBudget));
+        StringBuilder head = new StringBuilder();
+        if (!title.isEmpty()) {
+            head.append(title);
+        }
+        if (bodyPlain != null && !bodyPlain.isBlank()) {
+            if (head.length() > 0) {
+                head.append("\n\n");
+            }
+            head.append(bodyPlain);
+        }
+        String core = head.toString();
+        if (core.length() > headBudget) {
+            core = HtmlPlainText.truncatePlain(core, headBudget);
+        }
+        String full = core + linkBlock;
+        if (full.length() > maxTotal) {
+            full = HtmlPlainText.truncatePlain(core, maxTotal - linkLen) + linkBlock;
+            if (full.length() > maxTotal) {
+                full = HtmlPlainText.truncatePlain(full, maxTotal);
+            }
+        }
+        return full;
+    }
+
+    /**
+     * Одно сообщение в канале: альбом (до 10 фото) с подписью на первом снимке; при &gt;10 — следующие партии без подписи.
+     */
+    private void sendTelegramImagesWithCaption(
+            String token,
+            String chatId,
+            List<TelegramImage> images,
+            String caption
+    ) throws Exception {
+        int i = 0;
+        boolean firstBatch = true;
+        while (i < images.size()) {
+            int remaining = images.size() - i;
+            String cap = firstBatch ? caption : null;
+            firstBatch = false;
+            if (remaining == 1) {
+                sendTelegramPhoto(token, chatId, images.get(i), cap);
+                i++;
+            } else {
+                int chunk = Math.min(10, remaining);
+                sendTelegramMediaGroup(token, chatId, images.subList(i, i + chunk), cap);
+                i += chunk;
+            }
+        }
+    }
+
+    private record TelegramImage(byte[] data, String mimeType) {
+    }
+
+    private List<TelegramImage> loadTelegramImages(PostEntity post) throws IOException {
+        Long wsId = post.getWorkspace().getId();
+        List<PostMediaEntity> rows = postMediaRepository.findByPostIdOrderBySortOrderAsc(post.getId());
+        List<TelegramImage> out = new ArrayList<>();
+        for (PostMediaEntity pm : rows) {
+            MediaAssetEntity a = pm.getMediaAsset();
+            String mime = a.getMimeType();
+            if (mime == null || !mime.toLowerCase(Locale.ROOT).startsWith("image/")) {
+                continue;
+            }
+            MediaService.MediaFileView v = mediaService.fileForWorkspace(wsId, a.getId());
+            try (InputStream in = v.resource().getInputStream()) {
+                out.add(new TelegramImage(in.readAllBytes(), mime));
+            }
+        }
+        return out;
+    }
+
+    private void sendTelegramPhoto(String token, String chatId, TelegramImage img, String caption) throws Exception {
+        MultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
+        parts.add("chat_id", chatId);
+        parts.add("photo", telegramPhotoResource(img));
+        if (caption != null && !caption.isBlank()) {
+            parts.add("caption", caption);
+        }
+        telegramPostMultipart(token, "sendPhoto", parts);
+    }
+
+    private void sendTelegramMediaGroup(String token, String chatId, List<TelegramImage> slice, String caption)
+            throws Exception {
+        if (slice.size() < 2) {
+            throw new IllegalArgumentException("sendMediaGroup requires 2–10 photos");
+        }
+        MultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
+        parts.add("chat_id", chatId);
+        ArrayNode media = objectMapper.createArrayNode();
+        for (int i = 0; i < slice.size(); i++) {
+            TelegramImage img = slice.get(i);
+            ObjectNode item = objectMapper.createObjectNode();
+            item.put("type", "photo");
+            item.put("media", "attach://f" + i);
+            if (i == 0 && caption != null && !caption.isBlank()) {
+                item.put("caption", caption.length() > TELEGRAM_CAPTION_MAX
+                        ? caption.substring(0, TELEGRAM_CAPTION_MAX - 1) + "…"
+                        : caption);
+            }
+            media.add(item);
+            parts.add("f" + i, telegramPhotoResource(img));
+        }
+        parts.add("media", objectMapper.writeValueAsString(media));
+        telegramPostMultipart(token, "sendMediaGroup", parts);
+    }
+
+    private ByteArrayResource telegramPhotoResource(TelegramImage img) {
+        String name = telegramImageFilename(img.mimeType());
+        return new ByteArrayResource(img.data()) {
+            @Override
+            public String getFilename() {
+                return name;
+            }
+        };
+    }
+
+    private static String telegramImageFilename(String mime) {
+        if (mime == null) {
+            return "photo.jpg";
+        }
+        String m = mime.toLowerCase(Locale.ROOT);
+        if (m.contains("png")) {
+            return "photo.png";
+        }
+        if (m.contains("gif")) {
+            return "photo.gif";
+        }
+        if (m.contains("webp")) {
+            return "photo.webp";
+        }
+        return "photo.jpg";
+    }
+
+    private void telegramPostMultipart(String token, String method, MultiValueMap<String, Object> parts)
+            throws Exception {
+        String url = "https://api.telegram.org/bot" + token.trim() + "/" + method;
         String raw;
         try {
             raw = http.post()
                     .uri(url)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(objectMapper.writeValueAsString(body))
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(parts)
                     .retrieve()
                     .body(String.class);
         } catch (RestClientException e) {
-            throw new IllegalStateException("Telegram HTTP: " + e.getMessage(), e);
+            String detail = describeTelegramNetworkFailure(e);
+            throw new IllegalStateException("Telegram HTTP: " + detail, e);
         }
         JsonNode root = objectMapper.readTree(raw == null ? "{}" : raw);
         if (!root.path("ok").asBoolean(false)) {
             throw new IllegalStateException("Telegram API: " + truncateError(raw));
         }
-        upsertSuccess(post, ChannelType.TELEGRAM, now, null, null);
     }
 
     private void sendVk(PostEntity post, WorkspaceChannelEntity ch, Instant now) throws Exception {
@@ -217,7 +493,7 @@ public class ChannelDispatchService {
             recordFailureTerminal(post, ChannelType.VK, "Invalid groupId (expected numeric)", now);
             return;
         }
-        String message = buildMessage(post);
+        String message = buildChannelMessage(post);
         String uri = UriComponentsBuilder.fromUriString(VK_API)
                 .queryParam("v", "5.199")
                 .queryParam("access_token", accessToken.trim())
@@ -269,7 +545,7 @@ public class ChannelDispatchService {
             );
             return;
         }
-        String message = buildMessage(post);
+        String message = buildChannelMessage(post);
         String attachmentJson = buildOkAttachment(message, buildPublicUrl(post));
         String sessionSecret = md5Hex(accessToken.trim() + applicationSecretKey.trim());
 
@@ -365,6 +641,9 @@ public class ChannelDispatchService {
         if (row.getStatus() == ChannelDeliveryStatus.SENT) {
             return true;
         }
+        if (row.getStatus() == ChannelDeliveryStatus.REJECTED) {
+            return true;
+        }
         if (row.getStatus() == ChannelDeliveryStatus.FAILED && !row.isRetryable()) {
             return true;
         }
@@ -372,6 +651,39 @@ public class ChannelDispatchService {
                 && row.isRetryable()
                 && row.getNextRetryAt() != null
                 && row.getNextRetryAt().isAfter(now);
+    }
+
+    /**
+     * Эвристика по тексту ошибки API (ВК и др.): модерация, спам-фильтр, запрет публикации.
+     */
+    private static boolean isModerationRejection(String message) {
+        if (message == null || message.isBlank()) {
+            return false;
+        }
+        String m = message.toLowerCase(Locale.ROOT);
+        if (m.contains("moderat") || m.contains("модерац")) {
+            return true;
+        }
+        if (m.contains("\"error_code\":214") || m.contains("error_code\": 214") || m.contains("error_code\":214")) {
+            return true;
+        }
+        if (m.contains("spam") && (m.contains("vk") || m.contains("wall"))) {
+            return true;
+        }
+        if (m.contains("content rejected") || m.contains("заблокирован") || m.contains("blocked")) {
+            return true;
+        }
+        return false;
+    }
+
+    private void recordModerationRejected(PostEntity post, ChannelType type, String error, Instant now) {
+        String err = truncateError(error);
+        Optional<ChannelOutboundLogEntity> opt =
+                outboundLogRepository.findByPost_IdAndChannelType(post.getId(), type);
+        ChannelOutboundLogEntity row = opt.orElseGet(() ->
+                new ChannelOutboundLogEntity(post, type, ChannelDeliveryStatus.REJECTED, err, now));
+        row.markRejected(err, now);
+        outboundLogRepository.save(row);
     }
 
     private void upsertSuccess(
@@ -442,25 +754,26 @@ public class ChannelDispatchService {
         return Math.min(cap, Math.max(1, total));
     }
 
-    private String buildMessage(PostEntity post) {
+    /** Текст для соцканалов: без краткого описания — заголовок, сокращённая версия статьи, ссылка. */
+    private String buildChannelMessage(PostEntity post) {
         String title = post.getTitle() == null ? "" : post.getTitle().trim();
-        String excerpt = stripHtml(post.getExcerpt());
+        String preview = HtmlPlainText.toPlain(post.getBodyHtml(), CHANNEL_BODY_PREVIEW_CHARS);
         String link = buildPublicUrl(post);
         StringBuilder sb = new StringBuilder();
         if (!title.isEmpty()) {
             sb.append(title);
         }
-        if (excerpt != null && !excerpt.isBlank()) {
+        if (preview != null && !preview.isBlank()) {
             if (sb.length() > 0) {
                 sb.append("\n\n");
             }
-            sb.append(truncatePlain(excerpt, 1200));
+            sb.append(preview);
         }
         if (link != null && !link.isBlank()) {
             if (sb.length() > 0) {
                 sb.append("\n\n");
             }
-            sb.append(link);
+            sb.append("Читать дальше: ").append(link);
         }
         return truncatePlain(sb.toString(), MAX_MESSAGE_LEN);
     }
@@ -472,13 +785,6 @@ public class ChannelDispatchService {
         String base = publicSite.getBaseUrl().replaceAll("/+$", "");
         String ws = post.getWorkspace().getSlug();
         return base + "/blog/" + ws + "/p/" + post.getSlug();
-    }
-
-    private static String stripHtml(String html) {
-        if (html == null || html.isBlank()) {
-            return null;
-        }
-        return html.replaceAll("<[^>]*>", "").replace("&nbsp;", " ").trim();
     }
 
     private static String truncatePlain(String s, int max) {
@@ -495,10 +801,11 @@ public class ChannelDispatchService {
         if (s == null) {
             return null;
         }
-        if (s.length() <= MAX_ERR_DB) {
-            return s;
+        String cleaned = ChannelErrorSanitizer.stripSecrets(s);
+        if (cleaned.length() <= MAX_ERR_DB) {
+            return cleaned;
         }
-        return s.substring(0, MAX_ERR_DB - 1) + "…";
+        return cleaned.substring(0, MAX_ERR_DB - 1) + "…";
     }
 
     private static String text(JsonNode cfg, String key) {

@@ -2,23 +2,91 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { fetchPostPage } from '../api/posts'
-import type { ChannelType, PostStatus } from '../api/types'
+import type { PostOutboundInfo, PostStatus } from '../api/types'
+import {
+  channelShortName,
+  deliveryStatusLabel,
+  deliveryStatusTone,
+} from '../lib/channelPublish'
 import { useState } from 'react'
-
-function channelShort(t: ChannelType): string {
-  const m: Record<ChannelType, string> = {
-    TELEGRAM: 'TG',
-    VK: 'ВК',
-    ODNOKLASSNIKI: 'ОК',
-  }
-  return m[t] ?? t
-}
 
 const statusLabel: Record<PostStatus, string> = {
   DRAFT: 'Черновик',
   REVIEW: 'На review',
   PUBLISHED: 'Опубликован',
   ARCHIVED: 'Архив',
+}
+
+function toneClasses(tone: ReturnType<typeof deliveryStatusTone>): string {
+  switch (tone) {
+    case 'ok':
+      return 'border-emerald-500/40 bg-emerald-500/5 text-[var(--text)]'
+    case 'wait':
+      return 'border-[var(--border)] bg-[var(--bg)] text-[var(--muted)]'
+    case 'bad':
+      return 'border-red-400/50 bg-red-500/5 text-[var(--text)]'
+    case 'warn':
+      return 'border-amber-500/50 bg-amber-500/5 text-[var(--text)]'
+    default:
+      return 'border-[var(--border)] bg-[var(--bg)]'
+  }
+}
+
+function OutboundChips({ outbound }: { outbound: PostOutboundInfo[] }) {
+  return (
+    <ul className="mt-3 flex flex-col gap-2 text-[11px] sm:flex-row sm:flex-wrap">
+      {outbound.map((o) => {
+        const tone = deliveryStatusTone(o.deliveryStatus)
+        const label = deliveryStatusLabel(o.deliveryStatus)
+        const hasMetrics =
+          o.deliveryStatus === 'SENT' &&
+          (o.views > 0 || o.likes > 0 || o.reposts > 0 || o.comments > 0)
+        return (
+          <li
+            key={o.channelType}
+            className={`rounded-lg border px-2.5 py-1.5 ${toneClasses(tone)}`}
+          >
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span className="font-semibold text-[var(--text)]">{channelShortName(o.channelType)}</span>
+              <span className="opacity-90">{label}</span>
+              {o.externalUrl && o.deliveryStatus === 'SENT' ? (
+                <a
+                  className="text-[var(--accent)] hover:underline"
+                  href={o.externalUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  ссылка
+                </a>
+              ) : null}
+            </div>
+            {o.lastError && (o.deliveryStatus === 'FAILED' || o.deliveryStatus === 'REJECTED') ? (
+              <p className="mt-1 max-w-prose text-[10px] leading-snug opacity-90">{o.lastError}</p>
+            ) : null}
+            {o.deliveryStatus === 'SENT' ? (
+              <p className="mt-1 text-[10px] opacity-90">
+                {hasMetrics ? (
+                  <>
+                    👁 {o.views} · ♥ {o.likes}
+                    {o.reposts > 0 ? ` · ↻ ${o.reposts}` : ''}
+                    {o.comments > 0 ? ` · 💬 ${o.comments}` : ''}
+                  </>
+                ) : (
+                  <span className="text-[var(--muted)]">метрики появятся после синхронизации</span>
+                )}
+                {o.metricsFetchedAt ? (
+                  <span className="ml-1 text-[var(--muted)]">
+                    · {new Date(o.metricsFetchedAt).toLocaleString()}
+                  </span>
+                ) : null}
+              </p>
+            ) : null}
+          </li>
+        )
+      })}
+    </ul>
+  )
 }
 
 export function FeedPage() {
@@ -37,7 +105,8 @@ export function FeedPage() {
         <p className="mt-1 text-sm text-[var(--muted)]">
           Черновики и опубликованные материалы в одном месте. В{' '}
           <span className="text-[var(--text)]">публичном блоге</span> показываются только посты со статусом «Опубликован»
-          и публичной видимостью.
+          и публичной видимостью. Для каждого материала с соцпубликацией ниже видно статус по каждому выбранному каналу
+          (ожидание, успех, ошибка, отклонение модератором) и метрики с площадок.
         </p>
       </div>
 
@@ -98,29 +167,7 @@ export function FeedPage() {
                 {post.excerpt ? (
                   <p className="mt-2 line-clamp-2 text-sm text-[var(--muted)]">{post.excerpt}</p>
                 ) : null}
-                {(post.outbound?.length ?? 0) > 0 ? (
-                  <ul className="mt-3 flex flex-wrap gap-2 text-[11px] text-[var(--muted)]">
-                    {(post.outbound ?? []).map((o) => (
-                      <li
-                        key={o.channelType}
-                        className="rounded border border-[var(--border)] bg-[var(--bg)] px-2 py-1"
-                      >
-                        <span className="font-medium text-[var(--text)]">{channelShort(o.channelType)}</span>
-                        {o.deliveryStatus === 'SENT' ? (
-                          <span className="ml-1 text-emerald-600 dark:text-emerald-400">✓</span>
-                        ) : (
-                          <span className="ml-1 text-amber-600 dark:text-amber-400">!</span>
-                        )}
-                        {o.deliveryStatus === 'SENT' && (o.views > 0 || o.likes > 0) ? (
-                          <span className="ml-1 opacity-90">
-                            👁 {o.views} · ♥ {o.likes}
-                            {o.reposts > 0 ? ` · ↻ ${o.reposts}` : ''}
-                          </span>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
+                {(post.outbound?.length ?? 0) > 0 ? <OutboundChips outbound={post.outbound ?? []} /> : null}
               </Link>
             </li>
           ))}

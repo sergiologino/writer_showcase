@@ -1,6 +1,6 @@
 import { Link, Outlet, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { apiFetch, clearSession } from '../api/client'
+import { ApiError, apiFetch, clearSession } from '../api/client'
 import type { MeResponse } from '../api/types'
 import { applyTheme, getStoredTheme, type Theme } from '../lib/theme'
 import { useEffect, useMemo, useState } from 'react'
@@ -27,7 +27,19 @@ export function AppShell() {
   const me = useQuery({
     queryKey: ['me'],
     queryFn: () => apiFetch<MeResponse>('/api/me'),
+    retry: false,
   })
+
+  useEffect(() => {
+    if (!me.isError || !me.error) {
+      return
+    }
+    const status = me.error instanceof ApiError ? me.error.status : 0
+    if (status === 401 || status === 403) {
+      clearSession()
+      navigate('/login', { replace: true })
+    }
+  }, [me.isError, me.error, navigate])
 
   const workspaceSlug = useMemo(() => {
     const list = me.data?.workspaces
@@ -88,25 +100,29 @@ export function AppShell() {
                 <option value="dark">Тёмная</option>
               </select>
             </label>
-            {me.data ? (
-              <Link
-                className="max-w-[10rem] truncate text-xs text-[var(--muted)] hover:text-[var(--text)] hover:underline"
-                to="/app/profile"
-                title={me.data.user.email}
-              >
-                {me.data.user.displayName}
-              </Link>
+            {me.isSuccess ? (
+              <>
+                <Link
+                  className="max-w-[10rem] truncate text-xs text-[var(--muted)] hover:text-[var(--text)] hover:underline"
+                  to="/app/profile"
+                  title={me.data.user.email}
+                >
+                  {me.data.user.displayName}
+                </Link>
+                <button
+                  type="button"
+                  className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--bg)]"
+                  onClick={() => {
+                    clearSession()
+                    navigate('/login')
+                  }}
+                >
+                  Выйти
+                </button>
+              </>
+            ) : me.isPending ? (
+              <span className="text-xs text-[var(--muted)]">Проверка сессии…</span>
             ) : null}
-            <button
-              type="button"
-              className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--bg)]"
-              onClick={() => {
-                clearSession()
-                navigate('/login')
-              }}
-            >
-              Выйти
-            </button>
           </div>
         </div>
       </header>

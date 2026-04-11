@@ -173,6 +173,17 @@ public class ChannelOutboundLogEntity {
     }
 
     /**
+     * Отклонение модерацией площадки — без ретраев.
+     */
+    public void markRejected(String error, Instant now) {
+        this.status = ChannelDeliveryStatus.REJECTED;
+        this.errorMessage = error;
+        this.retryable = false;
+        this.nextRetryAt = null;
+        this.updatedAt = now;
+    }
+
+    /**
      * Очередная неудачная попытка доставки; следующая — не раньше {@code nextRetryAt}.
      */
     public void markRetryableFailure(String error, Instant now, int newAttemptCount, Instant nextRetryAt) {

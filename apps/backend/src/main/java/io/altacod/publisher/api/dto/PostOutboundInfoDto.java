@@ -17,4 +17,18 @@ public record PostOutboundInfoDto(
         Long comments,
         Long shares
 ) {
+    public static PostOutboundInfoDto pending(ChannelType channelType) {
+        return new PostOutboundInfoDto(
+                channelType,
+                ChannelDeliveryStatus.PENDING,
+                null,
+                null,
+                null,
+                0L,
+                0L,
+                0L,
+                0L,
+                0L
+        );
+    }
 }

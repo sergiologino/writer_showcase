@@ -7,12 +7,15 @@ import io.altacod.publisher.api.dto.PostOutboundInfoDto;
 import io.altacod.publisher.api.dto.PostPayload;
 import io.altacod.publisher.api.dto.PostResponse;
 import io.altacod.publisher.api.dto.TagSummaryDto;
+import io.altacod.publisher.channel.ChannelErrorSanitizer;
 import io.altacod.publisher.channel.ChannelDeliveryStatus;
 import io.altacod.publisher.channel.ChannelOutboundLogEntity;
 import io.altacod.publisher.channel.ChannelOutboundLogRepository;
 import io.altacod.publisher.channel.ChannelType;
 import io.altacod.publisher.channel.PostChannelTargetEntity;
 import io.altacod.publisher.channel.PostChannelTargetRepository;
+import io.altacod.publisher.channel.WorkspaceChannelEntity;
+import io.altacod.publisher.channel.WorkspaceChannelRepository;
 import io.altacod.publisher.media.MediaAssetEntity;
 import io.altacod.publisher.media.MediaAssetRepository;
 import io.altacod.publisher.media.PostMediaEntity;
@@ -51,6 +54,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -66,6 +70,7 @@ public class PostService {
     private final ApplicationEventPublisher eventPublisher;
     private final PostChannelTargetRepository postChannelTargetRepository;
     private final ChannelOutboundLogRepository channelOutboundLogRepository;
+    private final WorkspaceChannelRepository workspaceChannelRepository;
     private final ObjectMapper objectMapper;
 
     public PostService(
@@ -79,6 +84,7 @@ public class PostService {
             ApplicationEventPublisher eventPublisher,
             PostChannelTargetRepository postChannelTargetRepository,
             ChannelOutboundLogRepository channelOutboundLogRepository,
+            WorkspaceChannelRepository workspaceChannelRepository,
             ObjectMapper objectMapper
     ) {
         this.postRepository = postRepository;
@@ -91,6 +97,7 @@ public class PostService {
         this.eventPublisher = eventPublisher;
         this.postChannelTargetRepository = postChannelTargetRepository;
         this.channelOutboundLogRepository = channelOutboundLogRepository;
+        this.workspaceChannelRepository = workspaceChannelRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -165,7 +172,6 @@ public class PostService {
         PostEntity post = postRepository.findByIdAndWorkspaceId(id, workspaceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found"));
         PostStatus previous = post.getStatus();
-        PostVisibility previousVisibility = post.getVisibility();
         String slug = resolveSlug(workspaceId, payload.title(), payload.slug(), id);
         Instant now = Instant.now();
         Instant publishedAt = post.getPublishedAt();
@@ -194,11 +200,16 @@ public class PostService {
         applyPostMedia(post, workspaceId, payload.mediaAssetIds());
         applySocialAndTargets(post, payload, false);
 
-        boolean wasPublishedPublic =
-                previous == PostStatus.PUBLISHED && previousVisibility == PostVisibility.PUBLIC;
         boolean nowPublishedPublic =
                 payload.status() == PostStatus.PUBLISHED && payload.visibility() == PostVisibility.PUBLIC;
-        if (nowPublishedPublic && !wasPublishedPublic) {
+        if (nowPublishedPublic) {
+            /*
+             * Ставим в очередь диспетчера каналов при любом сохранении публичного опубликованного поста:
+             * — первый переход в PUBLISHED+PUBLIC;
+             * — повторное сохранение после подключения канала / токенов (раньше событие было только на переходе,
+             *   из‑за чего новый Telegram оставался в PENDING без попытки доставки);
+             * — ретраи для каналов без успешного лога. Уже доставленные (SENT) в dispatch пропускаются.
+             */
             eventPublisher.publishEvent(new PostPublishedEvent(post.getId()));
         }
 
@@ -343,10 +354,7 @@ public class PostService {
                 ))
                 .toList();
         Long categoryId = post.getCategory() == null ? null : post.getCategory().getId();
-        List<PostOutboundInfoDto> outbound = outboundLogs.stream()
-                .sorted(Comparator.comparing(l -> l.getChannelType().name()))
-                .map(this::toOutboundInfo)
-                .toList();
+        List<PostOutboundInfoDto> outbound = mergeOutbound(post, outboundLogs);
         return new PostResponse(
                 post.getId(),
                 post.getTitle(),
@@ -369,6 +377,42 @@ public class PostService {
         );
     }
 
+    /**
+     * Каналы, в которые должен уйти материал: явный список в {@code post_channel_targets} или все включённые каналы workspace.
+     */
+    private List<ChannelType> effectivePublishChannels(PostEntity post) {
+        if (!post.isSocialPublishEnabled()) {
+            return List.of();
+        }
+        List<ChannelType> explicit = postChannelTargetRepository.findChannelTypesByPostId(post.getId());
+        if (!explicit.isEmpty()) {
+            return explicit.stream().distinct().sorted(Comparator.comparing(Enum::name)).toList();
+        }
+        long wsId = post.getWorkspace().getId();
+        return workspaceChannelRepository.findByWorkspaceIdAndEnabledIsTrueOrderByChannelTypeAsc(wsId).stream()
+                .map(WorkspaceChannelEntity::getChannelType)
+                .toList();
+    }
+
+    private List<PostOutboundInfoDto> mergeOutbound(PostEntity post, List<ChannelOutboundLogEntity> outboundLogs) {
+        List<ChannelType> effective = effectivePublishChannels(post);
+        if (effective.isEmpty()) {
+            return List.of();
+        }
+        Map<ChannelType, ChannelOutboundLogEntity> byType = outboundLogs.stream()
+                .collect(Collectors.toMap(ChannelOutboundLogEntity::getChannelType, Function.identity(), (a, b) -> a));
+        List<PostOutboundInfoDto> rows = new ArrayList<>();
+        for (ChannelType ct : effective) {
+            ChannelOutboundLogEntity log = byType.get(ct);
+            if (log == null) {
+                rows.add(PostOutboundInfoDto.pending(ct));
+            } else {
+                rows.add(toOutboundInfo(log));
+            }
+        }
+        return rows;
+    }
+
     private PostOutboundInfoDto toOutboundInfo(ChannelOutboundLogEntity log) {
         long likes = 0;
         long reposts = 0;
@@ -388,11 +432,16 @@ public class PostService {
                 // keep zeros
             }
         }
+        boolean showErr = log.getStatus() == ChannelDeliveryStatus.FAILED
+                || log.getStatus() == ChannelDeliveryStatus.REJECTED;
+        String errForUi = showErr && log.getErrorMessage() != null
+                ? ChannelErrorSanitizer.stripSecrets(log.getErrorMessage())
+                : null;
         return new PostOutboundInfoDto(
                 log.getChannelType(),
                 log.getStatus(),
                 log.getExternalUrl(),
-                log.getStatus() == ChannelDeliveryStatus.FAILED ? log.getErrorMessage() : null,
+                errForUi,
                 log.getMetricsFetchedAt(),
                 likes,
                 reposts,

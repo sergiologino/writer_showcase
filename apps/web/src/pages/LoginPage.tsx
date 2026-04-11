@@ -1,18 +1,29 @@
 import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { login } from '../api/auth'
 import { ApiError } from '../api/client'
 
+function safeInternalRedirect(raw: string | null): string | null {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) {
+    return null
+  }
+  return raw
+}
+
 export function LoginPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const mutation = useMutation({
     mutationFn: () => login(email.trim(), password),
-    onSuccess: () => navigate('/app/feed'),
+    onSuccess: () => {
+      const r = safeInternalRedirect(searchParams.get('redirect'))
+      navigate(r ?? '/app/feed')
+    },
     onError: (e: unknown) => {
       setError(e instanceof ApiError ? e.message : 'Не удалось войти')
     },
@@ -67,7 +78,14 @@ export function LoginPage() {
       </form>
       <p className="mt-6 text-center text-sm text-[var(--muted)]">
         Нет аккаунта?{' '}
-        <Link className="font-medium text-[var(--accent)] hover:underline" to="/register">
+        <Link
+          className="font-medium text-[var(--accent)] hover:underline"
+          to={
+            searchParams.get('redirect')
+              ? `/register?redirect=${encodeURIComponent(searchParams.get('redirect')!)}`
+              : '/register'
+          }
+        >
           Регистрация
         </Link>
       </p>

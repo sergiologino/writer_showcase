@@ -7,6 +7,12 @@ public record PublicPostSummaryDto(
         String title,
         String slug,
         String excerpt,
-        Instant publishedAt
+        Instant publishedAt,
+        /** Первое вложение поста (для миниатюры в списке). */
+        Long firstMediaId,
+        String firstMediaUrl,
+        String firstMediaMimeType,
+        /** Обрезанный plain-text из HTML тела (для превью в списке). */
+        String bodyPreviewPlain
 ) {
 }

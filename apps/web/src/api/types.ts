@@ -55,9 +55,12 @@ export interface PostMediaAttachment {
 /** Каналы кросс-постинга (совпадает с бэкендом `ChannelType`). */
 export type ChannelType = 'TELEGRAM' | 'VK' | 'ODNOKLASSNIKI'
 
+/** Совпадает с `ChannelDeliveryStatus` на бэкенде. */
+export type ChannelDeliveryStatus = 'PENDING' | 'SENT' | 'FAILED' | 'REJECTED'
+
 export interface PostOutboundInfo {
   channelType: ChannelType
-  deliveryStatus: 'SENT' | 'FAILED' | string
+  deliveryStatus: ChannelDeliveryStatus
   externalUrl: string | null
   lastError: string | null
   metricsFetchedAt: string | null
@@ -106,6 +109,12 @@ export interface PublicPostSummary {
   slug: string
   excerpt: string | null
   publishedAt: string | null
+  /** Первое вложение (миниатюра в списке; в ответе детальной страницы может отсутствовать). */
+  firstMediaId?: number | null
+  firstMediaUrl?: string | null
+  firstMediaMimeType?: string | null
+  /** Plain-text превью тела (для ленты). */
+  bodyPreviewPlain?: string | null
 }
 
 export interface PublicMedia {

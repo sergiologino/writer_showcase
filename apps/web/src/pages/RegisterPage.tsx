@@ -1,11 +1,19 @@
 import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { register } from '../api/auth'
 import { ApiError } from '../api/client'
 
+function safeInternalRedirect(raw: string | null): string | null {
+  if (!raw || !raw.startsWith('/') || raw.startsWith('//')) {
+    return null
+  }
+  return raw
+}
+
 export function RegisterPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -14,7 +22,10 @@ export function RegisterPage() {
   const mutation = useMutation({
     mutationFn: () =>
       register(email.trim(), password, displayName.trim() || email.trim().split('@')[0] || 'Author'),
-    onSuccess: () => navigate('/app/feed'),
+    onSuccess: () => {
+      const r = safeInternalRedirect(searchParams.get('redirect'))
+      navigate(r ?? '/app/feed')
+    },
     onError: (e: unknown) => {
       setError(e instanceof ApiError ? e.message : 'Не удалось зарегистрироваться')
     },
@@ -81,7 +92,14 @@ export function RegisterPage() {
       </form>
       <p className="mt-6 text-center text-sm text-[var(--muted)]">
         Уже есть аккаунт?{' '}
-        <Link className="font-medium text-[var(--accent)] hover:underline" to="/login">
+        <Link
+          className="font-medium text-[var(--accent)] hover:underline"
+          to={
+            searchParams.get('redirect')
+              ? `/login?redirect=${encodeURIComponent(searchParams.get('redirect')!)}`
+              : '/login'
+          }
+        >
           Вход
         </Link>
       </p>

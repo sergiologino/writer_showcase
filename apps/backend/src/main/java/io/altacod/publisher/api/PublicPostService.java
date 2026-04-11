@@ -5,8 +5,10 @@ import io.altacod.publisher.api.dto.PublicMediaDto;
 import io.altacod.publisher.api.dto.PublicPostDetailDto;
 import io.altacod.publisher.api.dto.PublicPostSummaryDto;
 import io.altacod.publisher.api.dto.TagSummaryDto;
+import io.altacod.publisher.media.PostMediaEntity;
 import io.altacod.publisher.media.PostMediaRepository;
 import io.altacod.publisher.post.PostEntity;
+import io.altacod.publisher.text.HtmlPlainText;
 import io.altacod.publisher.post.PostRepository;
 import io.altacod.publisher.tag.TagEntity;
 import org.springframework.data.domain.Page;
@@ -21,6 +23,9 @@ import java.util.List;
 
 @Service
 public class PublicPostService {
+
+    /** Достаточно для длинного превью (~десятки строк текста в зависимости от вёрстки). */
+    private static final int BODY_PREVIEW_MAX_CHARS = 14_000;
 
     private final PostRepository postRepository;
     private final PostMediaRepository postMediaRepository;
@@ -43,12 +48,28 @@ public class PublicPostService {
     }
 
     private PublicPostSummaryDto toSummary(PostEntity post) {
+        String ws = post.getWorkspace().getSlug();
+        List<PostMediaEntity> mediaRows = postMediaRepository.findByPostIdOrderBySortOrderAsc(post.getId());
+        Long firstMediaId = null;
+        String firstMediaUrl = null;
+        String firstMediaMimeType = null;
+        if (!mediaRows.isEmpty()) {
+            var a = mediaRows.get(0).getMediaAsset();
+            firstMediaId = a.getId();
+            firstMediaUrl = "/api/public/w/" + ws + "/media/" + a.getId() + "/file";
+            firstMediaMimeType = a.getMimeType();
+        }
+        String bodyPreviewPlain = HtmlPlainText.toPlain(post.getBodyHtml(), BODY_PREVIEW_MAX_CHARS);
         return new PublicPostSummaryDto(
                 post.getId(),
                 post.getTitle(),
                 post.getSlug(),
                 post.getExcerpt(),
-                post.getPublishedAt()
+                post.getPublishedAt(),
+                firstMediaId,
+                firstMediaUrl,
+                firstMediaMimeType,
+                bodyPreviewPlain
         );
     }
 

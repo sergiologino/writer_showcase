@@ -50,6 +50,11 @@ export function PublishingChannelsPage() {
   const [okToken, setOkToken] = useState('')
   const [okGroupId, setOkGroupId] = useState('')
 
+  const [maxEnabled, setMaxEnabled] = useState(false)
+  const [maxLabel, setMaxLabel] = useState('')
+  const [maxAccessToken, setMaxAccessToken] = useState('')
+  const [maxChatId, setMaxChatId] = useState('')
+
   useEffect(() => {
     if (!channelsQ.data) {
       return
@@ -81,6 +86,13 @@ export function PublishingChannelsPage() {
       setOkAppSecret(cfg.applicationSecretKey ?? '')
       setOkToken(cfg.accessToken ?? '')
       setOkGroupId(cfg.groupId ?? '')
+    }
+    {
+      const { row, cfg } = apply('MAX')
+      setMaxEnabled(row?.enabled ?? false)
+      setMaxLabel(row?.label ?? '')
+      setMaxAccessToken(cfg.accessToken ?? '')
+      setMaxChatId(cfg.chatId ?? '')
     }
   }, [channelsQ.data])
 
@@ -377,6 +389,101 @@ export function PublishingChannelsPage() {
             }
           >
             {save.isPending ? 'Сохранение…' : 'Сохранить Одноклассники'}
+          </button>
+        </div>
+      </section>
+
+      {/* МАКС (MAX) */}
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
+        <h2 className="text-lg font-semibold">Мессенджер МАКС</h2>
+        <details className="mt-3 text-sm text-[var(--muted)]">
+          <summary className="cursor-pointer font-medium text-[var(--text)]">Как подключить (пошагово)</summary>
+          <ol className="mt-3 list-decimal space-y-2 pl-5">
+            <li>
+              В{' '}
+              <a
+                className="text-[var(--accent)] hover:underline"
+                href="https://business.max.ru/self"
+                target="_blank"
+                rel="noreferrer"
+              >
+                кабинете MAX для бизнеса
+              </a>{' '}
+              создайте чат-бота и получите токен: раздел <strong>Чат-боты → Интеграция</strong> (см.{' '}
+              <a
+                className="text-[var(--accent)] hover:underline"
+                href="https://dev.max.ru/docs-api"
+                target="_blank"
+                rel="noreferrer"
+              >
+                документацию API
+              </a>
+              ).
+            </li>
+            <li>
+              Убедитесь, что бот может писать в нужный <strong>чат</strong> (группа, канал или чат) — бот обычно
+              должен быть участником с правом отправки сообщений.
+            </li>
+            <li>
+              Узнайте <strong>числовой id чата</strong> (chat_id), в который бот публикует объявления. Его передают в
+              Bot API в параметре <code className="rounded bg-[var(--bg)] px-1">chat_id</code> (потребуется для поля
+              ниже; часто id виден в событиях webhook при первом сообщении).
+            </li>
+            <li>Сохраните токен и id чата здесь, включите канал — при публикации поста в блог текст уйдёт в этот чат.</li>
+          </ol>
+        </details>
+
+        <div className="mt-4 space-y-3">
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <input type="checkbox" checked={maxEnabled} onChange={(e) => setMaxEnabled(e.target.checked)} />
+            Канал включён
+          </label>
+          <label className="block text-sm font-medium">
+            Подпись (необязательно)
+            <input
+              className="mt-1 w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2"
+              value={maxLabel}
+              onChange={(e) => setMaxLabel(e.target.value)}
+              placeholder="Например: анонс в МАКС"
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Токен бота (access token)
+            <input
+              type="password"
+              autoComplete="off"
+              className="mt-1 w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 font-mono text-sm"
+              value={maxAccessToken}
+              onChange={(e) => setMaxAccessToken(e.target.value)}
+              placeholder="Оставьте пустым, если уже сохранён"
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Chat id
+            <input
+              className="mt-1 w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 font-mono text-sm"
+              value={maxChatId}
+              onChange={(e) => setMaxChatId(e.target.value.replace(/[^\d-]/g, ''))}
+              placeholder="Число из MAX Bot API"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={save.isPending}
+            className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] disabled:opacity-60"
+            onClick={() =>
+              save.mutate({
+                type: 'MAX',
+                enabled: maxEnabled,
+                label: maxLabel.trim() || '',
+                configJson: JSON.stringify({
+                  accessToken: maxAccessToken.trim(),
+                  chatId: maxChatId.trim(),
+                }),
+              })
+            }
+          >
+            {save.isPending ? 'Сохранение…' : 'Сохранить МАКС'}
           </button>
         </div>
       </section>

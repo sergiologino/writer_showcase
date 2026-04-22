@@ -23,3 +23,5 @@
 - **2026-04-09**: Надёжность доставки: Flyway V5 (`attempt_count`, `next_retry_at`, `retryable`), экспоненциальный backoff с jitter и лимитом, отдельный `@Scheduled` для ретраев, терминальные сбои конфигурации без повторов; настройки `publisher.channels.delivery.*` и `retry-poll-ms`.
 
 - **2026-04-22**: Добавлен `docs/ai/TODO.md` (очередь: канал МАКС, углубление AI, прочие пункты из `CURRENT_STATE`/`TZ_BACKLOG`); `CURRENT_STATE.md` обновлён — ссылка на TODO и переставлены приоритеты (MAX и AI впереди).
+
+- **2026-04-22**: Канал **MAX** (мессенджер МАКС): `ChannelType.MAX`, публикация через MAX Bot API (`platform-api.max.ru/messages`, конфиг `accessToken` + `chatId`), UI на `/app/.../channels` (страница «Каналы публикации»), тест `MaxMessengerHttpContractTest`, ADR-011.

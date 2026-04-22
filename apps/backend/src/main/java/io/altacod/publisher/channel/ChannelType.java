@@ -4,5 +4,7 @@ public enum ChannelType {
     TELEGRAM,
     VK,
     /** Одноклассники (OK.ru) */
-    ODNOKLASSNIKI
+    ODNOKLASSNIKI,
+    /** Мессенджер МАКС (MAX Bot API, platform-api.max.ru) */
+    MAX
 }

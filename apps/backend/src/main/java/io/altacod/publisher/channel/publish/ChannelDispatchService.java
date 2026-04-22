@@ -35,6 +35,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
@@ -60,6 +61,8 @@ public class ChannelDispatchService {
     private static final Logger log = LoggerFactory.getLogger(ChannelDispatchService.class);
 
     private static final int MAX_MESSAGE_LEN = 3800;
+    /** Текст сообщения в MAX Bot API (см. dev.max.ru). */
+    private static final int MAX_MESSENGER_TEXT_LEN = 4000;
     /** Лимит подписи к фото/альбому в Telegram Bot API. */
     private static final int TELEGRAM_CAPTION_MAX = 1024;
     /** Превью тела статьи для ВК/ОК (символов plain text). */
@@ -68,6 +71,7 @@ public class ChannelDispatchService {
     private static final String VK_API = "https://api.vk.com/method/wall.post";
     private static final String VK_GET = "https://api.vk.com/method/wall.getById";
     private static final String OK_API = "https://api.ok.ru/fb.do";
+    private static final String MAX_MESSAGES_API = "https://platform-api.max.ru/messages";
 
     private final PostRepository postRepository;
     private final WorkspaceChannelRepository channelRepository;
@@ -129,6 +133,7 @@ public class ChannelDispatchService {
                     case TELEGRAM -> sendTelegram(post, ch, now);
                     case VK -> sendVk(post, ch, now);
                     case ODNOKLASSNIKI -> sendOdnoklassniki(post, ch, now);
+                    case MAX -> sendMax(post, ch, now);
                     default -> log.debug("Unsupported channel type: {}", ch.getChannelType());
                 }
             } catch (Exception e) {
@@ -181,6 +186,7 @@ public class ChannelDispatchService {
                 case TELEGRAM -> sendTelegram(post, ch, now);
                 case VK -> sendVk(post, ch, now);
                 case ODNOKLASSNIKI -> sendOdnoklassniki(post, ch, now);
+                case MAX -> sendMax(post, ch, now);
                 default -> log.debug("Unsupported channel type: {}", type);
             }
         } catch (Exception e) {
@@ -586,6 +592,101 @@ public class ChannelDispatchService {
         }
         String topicUrl = "https://ok.ru/group/" + groupId.trim() + "/topic/" + topicId;
         upsertSuccess(post, ChannelType.ODNOKLASSNIKI, now, topicId, topicUrl);
+    }
+
+    private void sendMax(PostEntity post, WorkspaceChannelEntity ch, Instant now) throws Exception {
+        Optional<ChannelOutboundLogEntity> existing =
+                outboundLogRepository.findByPost_IdAndChannelType(post.getId(), ChannelType.MAX);
+        if (shouldSkipDelivery(existing, now)) {
+            return;
+        }
+        JsonNode cfg = objectMapper.readTree(ch.getConfigJson());
+        String accessToken = text(cfg, "accessToken");
+        String chatIdRaw = text(cfg, "chatId");
+        if (accessToken == null || accessToken.isBlank() || chatIdRaw == null || chatIdRaw.isBlank()) {
+            recordFailureTerminal(
+                    post,
+                    ChannelType.MAX,
+                    "Missing accessToken or chatId in channel config",
+                    now
+            );
+            return;
+        }
+        long chatId;
+        try {
+            chatId = Long.parseLong(chatIdRaw.trim());
+        } catch (NumberFormatException e) {
+            recordFailureTerminal(post, ChannelType.MAX, "Invalid chatId (expected integer)", now);
+            return;
+        }
+        String message = truncatePlain(buildChannelMessage(post), MAX_MESSENGER_TEXT_LEN);
+        ObjectNode requestBody = objectMapper.createObjectNode();
+        requestBody.put("text", message);
+        // См. dev.max.ru: при false не генерируется превью ссылок (аналог «без сниппета» у Telegram).
+        requestBody.put("disable_link_preview", false);
+
+        String uri = UriComponentsBuilder.fromUriString(MAX_MESSAGES_API)
+                .queryParam("chat_id", chatId)
+                .build(true)
+                .toUriString();
+        String authHeader = authorizationHeaderForMax(accessToken);
+        String raw;
+        try {
+            raw = http.post()
+                    .uri(uri)
+                    .header("Authorization", authHeader)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(objectMapper.writeValueAsString(requestBody))
+                    .retrieve()
+                    .body(String.class);
+        } catch (RestClientResponseException e) {
+            String body = e.getResponseBodyAsString();
+            throw new IllegalStateException(
+                    "MAX API: HTTP " + e.getStatusCode().value() + " " + truncateError(body), e
+            );
+        } catch (RestClientException e) {
+            String detail = describeMaxNetworkFailure(e);
+            throw new IllegalStateException("MAX HTTP: " + detail, e);
+        }
+        JsonNode root = objectMapper.readTree(raw == null ? "{}" : raw);
+        if (root.has("error")) {
+            throw new IllegalStateException("MAX API: " + truncateError(root.path("error").toString()));
+        }
+        if (!root.path("message").isObject()) {
+            throw new IllegalStateException("MAX API: missing message in response: " + truncateError(raw));
+        }
+        long mid = root.path("message").path("id").asLong(0L);
+        String extId = mid > 0 ? Long.toString(mid) : null;
+        upsertSuccess(post, ChannelType.MAX, now, extId, null);
+    }
+
+    /**
+     * Официальная документация: заголовок {@code Authorization} с токеном бота; в примерах часто используется префикс
+     * {@code Bearer } (как в OpenAPI-совместимых клиентах).
+     */
+    private static String authorizationHeaderForMax(String accessToken) {
+        String t = accessToken.trim();
+        if (t.regionMatches(true, 0, "bearer ", 0, 7)) {
+            return t;
+        }
+        return "Bearer " + t;
+    }
+
+    private static String describeMaxNetworkFailure(RestClientException e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof ConnectException || t instanceof ClosedChannelException) {
+                return "не удалось установить соединение с platform-api.max.ru:443. Проверьте исходящий HTTPS";
+            }
+            if (t instanceof UnknownHostException) {
+                return "не удаётся разрешить имя platform-api.max.ru (DNS)";
+            }
+            if (t instanceof HttpTimeoutException) {
+                return "таймаут при обращении к platform-api.max.ru";
+            }
+        }
+        return e.getMessage() == null || e.getMessage().isBlank()
+                ? e.getClass().getSimpleName()
+                : ChannelErrorSanitizer.stripSecrets(e.getMessage());
     }
 
     private String buildOkAttachment(String message, String link) {

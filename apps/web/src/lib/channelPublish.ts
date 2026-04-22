@@ -5,6 +5,7 @@ export function channelShortName(t: ChannelType): string {
     TELEGRAM: 'TG',
     VK: 'ВК',
     ODNOKLASSNIKI: 'ОК',
+    MAX: 'MAX',
   }
   return m[t] ?? t
 }
@@ -14,6 +15,7 @@ export function channelFullName(t: ChannelType): string {
     TELEGRAM: 'Telegram',
     VK: 'ВКонтакте',
     ODNOKLASSNIKI: 'Одноклассники',
+    MAX: 'МАКС',
   }
   return m[t] ?? t
 }

@@ -9,6 +9,13 @@ export interface TokenResponse {
   expiresIn: number
 }
 
+export interface ProfilePhoto {
+  mediaAssetId: number
+  /** Публичный путь для <img src> */
+  url: string
+  mimeType: string | null
+}
+
 export interface UserSummary {
   id: number
   email: string
@@ -19,6 +26,10 @@ export interface UserSummary {
   theme: 'light' | 'dark' | 'system' | null
   /** Глобальная роль: настройка нейросетей, приоритеты маршрутизации. */
   isAdmin: boolean
+  /** Публичный URL аватара (без host) или null */
+  avatarUrl: string | null
+  /** Фотографии профиля (галерея). */
+  profilePhotos: ProfilePhoto[]
 }
 
 export interface UpdateProfilePayload {
@@ -130,6 +141,8 @@ export interface PublicPostSummary {
   firstMediaMimeType?: string | null
   /** Plain-text превью тела (для ленты). */
   bodyPreviewPlain?: string | null
+  authorDisplayName?: string | null
+  authorAvatarUrl?: string | null
 }
 
 export interface PublicMedia {

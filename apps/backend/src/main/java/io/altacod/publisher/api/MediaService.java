@@ -8,6 +8,8 @@ import io.altacod.publisher.media.MediaSourceType;
 import io.altacod.publisher.media.MediaType;
 import io.altacod.publisher.media.PostMediaRepository;
 import io.altacod.publisher.storage.LocalObjectStorage;
+import io.altacod.publisher.user.UserProfileMediaRepository;
+import io.altacod.publisher.user.UserRepository;
 import io.altacod.publisher.workspace.WorkspaceEntity;
 import io.altacod.publisher.workspace.WorkspaceRepository;
 import org.springframework.core.io.Resource;
@@ -33,19 +35,25 @@ public class MediaService {
     private final LocalObjectStorage objectStorage;
     private final PublisherStorageProperties storageProperties;
     private final PostMediaRepository postMediaRepository;
+    private final UserRepository userRepository;
+    private final UserProfileMediaRepository userProfileMediaRepository;
 
     public MediaService(
             MediaAssetRepository mediaAssetRepository,
             WorkspaceRepository workspaceRepository,
             LocalObjectStorage objectStorage,
             PublisherStorageProperties storageProperties,
-            PostMediaRepository postMediaRepository
+            PostMediaRepository postMediaRepository,
+            UserRepository userRepository,
+            UserProfileMediaRepository userProfileMediaRepository
     ) {
         this.mediaAssetRepository = mediaAssetRepository;
         this.workspaceRepository = workspaceRepository;
         this.objectStorage = objectStorage;
         this.storageProperties = storageProperties;
         this.postMediaRepository = postMediaRepository;
+        this.userRepository = userRepository;
+        this.userProfileMediaRepository = userProfileMediaRepository;
     }
 
     @Transactional
@@ -95,6 +103,8 @@ public class MediaService {
     public void delete(Long workspaceId, Long id) {
         MediaAssetEntity asset = mediaAssetRepository.findByIdAndWorkspaceId(id, workspaceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Media not found"));
+        userRepository.clearAvatarWhereMediaId(id);
+        userProfileMediaRepository.deleteByMediaAsset_Id(id);
         try {
             objectStorage.deleteIfExists(asset.getStorageKey());
         } catch (IOException e) {
@@ -121,12 +131,15 @@ public class MediaService {
 
     @Transactional(readOnly = true)
     public MediaFileView mediaFileForPublicDownload(String workspaceSlug, Long mediaId) {
-        if (postMediaRepository.countPublicPublishedByMediaAndWorkspaceSlug(mediaId, workspaceSlug) == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Media not found");
-        }
         MediaAssetEntity asset = mediaAssetRepository.findById(mediaId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Media not found"));
         if (!asset.getWorkspace().getSlug().equals(workspaceSlug)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Media not found");
+        }
+        long wId = asset.getWorkspace().getId();
+        if (postMediaRepository.countPublicPublishedByMediaAndWorkspaceSlug(mediaId, workspaceSlug) == 0
+                && !userRepository.isAvatarMediaForMemberOfWorkspace(mediaId, wId)
+                && !userProfileMediaRepository.isGalleryMediaInWorkspace(mediaId, wId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Media not found");
         }
         try {

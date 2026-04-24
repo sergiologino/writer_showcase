@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 import { resolveApiUrl } from '../api/client'
+import { PublicAuthorChip } from '../components/PublicAuthorChip'
 import { PublicSiteNav } from '../components/PublicSiteNav'
 import { fetchPublicPosts } from '../api/posts'
 
@@ -78,6 +79,12 @@ export function PublicBlogPage() {
                     </div>
                   ) : null}
                   <div className="min-w-0 flex-1 space-y-3">
+                    {post.authorDisplayName ? (
+                      <PublicAuthorChip
+                        name={post.authorDisplayName}
+                        avatarUrl={post.authorAvatarUrl}
+                      />
+                    ) : null}
                     <h2 className="text-xl font-medium leading-snug">
                       <Link
                         className="text-[var(--text)] hover:text-[var(--accent)]"

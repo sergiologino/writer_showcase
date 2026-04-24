@@ -13,6 +13,9 @@ public record PublicPostSummaryDto(
         String firstMediaUrl,
         String firstMediaMimeType,
         /** Обрезанный plain-text из HTML тела (для превью в списке). */
-        String bodyPreviewPlain
+        String bodyPreviewPlain,
+        String authorDisplayName,
+        /** Публичный URL аватара автора или null. */
+        String authorAvatarUrl
 ) {
 }

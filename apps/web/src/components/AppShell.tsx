@@ -58,9 +58,6 @@ export function AppShell() {
               <Link className="hover:text-[var(--text)]" to="/app/media">
                 Медиа
               </Link>
-              <Link className="hover:text-[var(--text)]" to="/app/channels">
-                Каналы
-              </Link>
               {workspaceSlug ? (
                 <Link className="hover:text-[var(--text)]" to={`/blog/${workspaceSlug}`}>
                   Публичный блог
@@ -71,7 +68,11 @@ export function AppShell() {
           <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggleButton />
             {me.isSuccess ? (
-              <UserAvatarMenu displayName={me.data.user.displayName} email={me.data.user.email} />
+              <UserAvatarMenu
+                displayName={me.data.user.displayName}
+                email={me.data.user.email}
+                avatarUrl={me.data.user.avatarUrl ?? null}
+              />
             ) : me.isPending ? (
               <span className="text-xs text-[var(--muted)]">Проверка сессии…</span>
             ) : null}

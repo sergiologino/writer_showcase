@@ -13,6 +13,8 @@ public record PublicPostDetailDto(
         List<TagSummaryDto> tags,
         List<PublicMediaDto> media,
         Instant publishedAt,
-        Instant updatedAt
+        Instant updatedAt,
+        String authorDisplayName,
+        String authorAvatarUrl
 ) {
 }

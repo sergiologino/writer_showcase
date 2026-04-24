@@ -60,6 +60,7 @@ public class PublicPostService {
             firstMediaMimeType = a.getMimeType();
         }
         String bodyPreviewPlain = HtmlPlainText.toPlain(post.getBodyHtml(), BODY_PREVIEW_MAX_CHARS);
+        String authorAvatar = authorAvatarUrl(post);
         return new PublicPostSummaryDto(
                 post.getId(),
                 post.getTitle(),
@@ -69,8 +70,19 @@ public class PublicPostService {
                 firstMediaId,
                 firstMediaUrl,
                 firstMediaMimeType,
-                bodyPreviewPlain
+                bodyPreviewPlain,
+                post.getAuthor().getDisplayName(),
+                authorAvatar
         );
+    }
+
+    private static String authorAvatarUrl(PostEntity post) {
+        var a = post.getAuthor().getAvatarMedia();
+        if (a == null) {
+            return null;
+        }
+        String ws = post.getWorkspace().getSlug();
+        return "/api/public/w/" + ws + "/media/" + a.getId() + "/file";
     }
 
     private PublicPostDetailDto toDetail(PostEntity post) {
@@ -102,6 +114,7 @@ public class PublicPostService {
                         pm.getCaption()
                 ))
                 .toList();
+        String av = authorAvatarUrl(post);
         return new PublicPostDetailDto(
                 post.getId(),
                 post.getTitle(),
@@ -112,7 +125,9 @@ public class PublicPostService {
                 tags,
                 media,
                 post.getPublishedAt(),
-                post.getUpdatedAt()
+                post.getUpdatedAt(),
+                post.getAuthor().getDisplayName(),
+                av
         );
     }
 }

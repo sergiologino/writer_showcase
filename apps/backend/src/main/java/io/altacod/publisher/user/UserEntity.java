@@ -1,10 +1,14 @@
 package io.altacod.publisher.user;
 
+import io.altacod.publisher.media.MediaAssetEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
@@ -28,6 +32,10 @@ public class UserEntity {
 
     @Column(name = "oauth_subject", length = 255)
     private String oauthSubject;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "avatar_media_asset_id")
+    private MediaAssetEntity avatarMedia;
 
     @Column(name = "display_name", nullable = false)
     private String displayName;
@@ -94,6 +102,14 @@ public class UserEntity {
 
     public void setOauthSubject(String oauthSubject) {
         this.oauthSubject = oauthSubject;
+    }
+
+    public MediaAssetEntity getAvatarMedia() {
+        return avatarMedia;
+    }
+
+    public void setAvatarMedia(MediaAssetEntity avatarMedia) {
+        this.avatarMedia = avatarMedia;
     }
 
     public String getDisplayName() {

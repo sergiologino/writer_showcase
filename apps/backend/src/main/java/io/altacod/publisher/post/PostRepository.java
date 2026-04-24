@@ -2,6 +2,7 @@ package io.altacod.publisher.post;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -31,6 +32,7 @@ public interface PostRepository extends JpaRepository<PostEntity, Long> {
 
     Optional<PostEntity> findByWorkspaceIdAndSlug(Long workspaceId, String slug);
 
+    @EntityGraph(attributePaths = {"workspace", "author", "author.avatarMedia"})
     @Query("""
             select p from PostEntity p
             join p.workspace w
@@ -41,6 +43,13 @@ public interface PostRepository extends JpaRepository<PostEntity, Long> {
             """)
     Page<PostEntity> findPublicByWorkspaceSlug(@Param("workspaceSlug") String workspaceSlug, Pageable pageable);
 
+    @EntityGraph(attributePaths = {
+            "workspace",
+            "author",
+            "author.avatarMedia",
+            "category",
+            "tags"
+    })
     @Query("""
             select p from PostEntity p
             join p.workspace w

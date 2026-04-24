@@ -4,6 +4,7 @@ import { Link, useLocation, useParams } from 'react-router-dom'
 import { fetchPublicPost } from '../api/posts'
 import { getStoredAccessToken, resolveApiUrl } from '../api/client'
 import { fetchPublicEngagement, postPublicComment, togglePostLike } from '../api/publicEngagement'
+import { PublicAuthorChip } from '../components/PublicAuthorChip'
 import { PublicSiteNav } from '../components/PublicSiteNav'
 
 export function PublicPostPage() {
@@ -96,6 +97,9 @@ export function PublicPostPage() {
         ← все материалы
       </Link>
       <header className="space-y-2 border-b border-[var(--border)] pb-6">
+        {post.authorDisplayName ? (
+          <PublicAuthorChip name={post.authorDisplayName} avatarUrl={post.authorAvatarUrl} className="pb-1" />
+        ) : null}
         <h1 className="text-3xl font-semibold tracking-tight">{post.title}</h1>
         {post.publishedAt ? (
           <p className="text-xs text-[var(--muted)]">{new Date(post.publishedAt).toLocaleString()}</p>

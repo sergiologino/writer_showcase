@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { clearSession } from '../api/client'
+import { clearSession, resolveApiUrl } from '../api/client'
 
 function initials(displayName: string, email: string): string {
   const t = displayName.trim()
@@ -18,9 +18,11 @@ function initials(displayName: string, email: string): string {
 type Props = {
   displayName: string
   email: string
+  /** Публичный путь к файлу аватара (как в /api/me) или null */
+  avatarUrl?: string | null
 }
 
-export function UserAvatarMenu({ displayName, email }: Props) {
+export function UserAvatarMenu({ displayName, email, avatarUrl = null }: Props) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
@@ -40,13 +42,21 @@ export function UserAvatarMenu({ displayName, email }: Props) {
     <div className="relative" ref={rootRef}>
       <button
         type="button"
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--bg)] text-xs font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:ring-2 hover:ring-[var(--accent)]/30"
+        className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg)] text-xs font-semibold text-[var(--text)] transition hover:border-[var(--accent)] hover:ring-2 hover:ring-[var(--accent)]/30"
         title={email}
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((v) => !v)}
       >
-        {label}
+        {avatarUrl ? (
+          <img
+            src={resolveApiUrl(avatarUrl)}
+            alt=""
+            className="h-full w-full rounded-full object-cover"
+          />
+        ) : (
+          label
+        )}
       </button>
       {open ? (
         <div
@@ -60,6 +70,14 @@ export function UserAvatarMenu({ displayName, email }: Props) {
             onClick={() => setOpen(false)}
           >
             Профиль
+          </Link>
+          <Link
+            role="menuitem"
+            className="block px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--bg)]"
+            to="/app/channels"
+            onClick={() => setOpen(false)}
+          >
+            Каналы
           </Link>
           <button
             type="button"

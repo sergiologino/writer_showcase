@@ -14,8 +14,16 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Когда Google/Yandex не настроены, нужен «пустой» репозиторий: {@link InMemoryClientRegistrationRepository}
+ * не принимает пустой список регистраций.
+ */
 @Configuration
 public class Oauth2ClientRegistrationConfig {
+
+    private static ClientRegistrationRepository emptyClientRegistrationRepository() {
+        return registrationId -> null;
+    }
 
     @Bean
     public Oauth2ProvidersStatus oauth2ProvidersStatus(
@@ -36,7 +44,7 @@ public class Oauth2ClientRegistrationConfig {
             @Value("${YANDEX_CLIENT_SECRET:}") String yandexSecret
     ) {
         if (!status.isAny()) {
-            return new InMemoryClientRegistrationRepository();
+            return emptyClientRegistrationRepository();
         }
         List<ClientRegistration> list = new ArrayList<>();
         if (status.isGoogle()) {

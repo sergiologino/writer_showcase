@@ -23,18 +23,21 @@ public class AiInvokeService {
     private final WorkspaceAiPromptRepository promptRepository;
     private final IntegrationAiClient integrationAiClient;
     private final AiNetworkRoutingService routingService;
+    private final PostService postService;
 
     public AiInvokeService(
             WorkspaceAiPromptRepository promptRepository,
             IntegrationAiClient integrationAiClient,
-            AiNetworkRoutingService routingService
+            AiNetworkRoutingService routingService,
+            PostService postService
     ) {
         this.promptRepository = promptRepository;
         this.integrationAiClient = integrationAiClient;
         this.routingService = routingService;
+        this.postService = postService;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AiInvokeResponse invoke(Long workspaceId, AiInvokeRequest request) {
         var prompt = promptRepository.findByWorkspaceIdAndPromptKey(workspaceId, request.promptKey())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Prompt not found"));
@@ -52,6 +55,10 @@ public class AiInvokeService {
                 request.contentSnippet()
         );
         Map<String, String> metadata = enrichMetadata(request.metadata(), workspaceId, request.promptKey());
+        if (request.postId() != null) {
+            metadata = new HashMap<>(metadata);
+            metadata.put("publisher.postId", String.valueOf(request.postId()));
+        }
         NoteappAiProcessRequest base = new NoteappAiProcessRequest(
                 userId,
                 null,
@@ -59,14 +66,19 @@ public class AiInvokeService {
                 payload,
                 metadata.isEmpty() ? null : metadata
         );
-        return sendWithNetworkFallback(
-                request.networkName() == null || request.networkName().isBlank() ? null : request.networkName().trim(),
-                requestType,
-                base
+        AiInvokeResponse res = mapNotConfigured(
+                sendWithNetworkFallback(
+                        request.networkName() == null || request.networkName().isBlank()
+                                ? null
+                                : request.networkName().trim(),
+                        requestType,
+                        base
+                )
         );
+        return attachPostTotals(res, workspaceId, request.postId());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AiInvokeResponse studioInvoke(Long workspaceId, Long userId, StudioAiRequest request) {
         if (request.payload() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "payload is required");
@@ -83,6 +95,9 @@ public class AiInvokeService {
         }
         metadata.putIfAbsent("publisher.source", "publisher-studio");
         metadata.put("publisher.workspaceId", String.valueOf(workspaceId));
+        if (request.postId() != null) {
+            metadata.put("publisher.postId", String.valueOf(request.postId()));
+        }
         Map<String, Object> p = new HashMap<>(request.payload());
         NoteappAiProcessRequest base = new NoteappAiProcessRequest(
                 ext,
@@ -94,7 +109,20 @@ public class AiInvokeService {
         String explicit = request.networkName() == null || request.networkName().isBlank()
                 ? null
                 : request.networkName().trim();
-        return sendWithNetworkFallback(explicit, requestType, base);
+        AiInvokeResponse res = sendWithNetworkFallback(explicit, requestType, base);
+        return attachPostTotals(res, workspaceId, request.postId());
+    }
+
+    private AiInvokeResponse attachPostTotals(AiInvokeResponse res, Long workspaceId, Long postId) {
+        if (!res.ok()) {
+            return res;
+        }
+        if (postId == null) {
+            return AiInvokeResponse.ofSuccess(res.output(), res.tokensUsed(), null);
+        }
+        int delta = res.tokensUsed() != null ? res.tokensUsed() : 0;
+        long total = postService.addAccumulatedAiTokens(workspaceId, postId, delta);
+        return AiInvokeResponse.ofSuccess(res.output(), res.tokensUsed(), total);
     }
 
     private AiInvokeResponse sendWithNetworkFallback(

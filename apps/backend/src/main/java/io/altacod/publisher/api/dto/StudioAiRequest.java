@@ -13,6 +13,8 @@ public record StudioAiRequest(
         Map<String, Object> payload,
         Map<String, String> metadata,
         @Size(max = 256) String externalUserId,
-        @Size(max = 128) String networkName
+        @Size(max = 128) String networkName,
+        /** Считать накопительные токены по этой статье (после сохранения). */
+        Long postId
 ) {
 }

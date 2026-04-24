@@ -173,6 +173,27 @@ public class PostService {
         return toResponse(post);
     }
 
+    /**
+     * Добавляет к накопительному счётчику токенов по статье (успешный вызов AI).
+     */
+    @Transactional
+    public long addAccumulatedAiTokens(Long workspaceId, Long postId, int deltaTokens) {
+        if (deltaTokens <= 0) {
+            PostEntity p = postRepository.findByIdAndWorkspaceId(postId, workspaceId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found"));
+            return p.getAiTokensTotal();
+        }
+        PostEntity post = postRepository.findByIdAndWorkspaceId(postId, workspaceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found"));
+        long next = post.getAiTokensTotal() + (long) deltaTokens;
+        if (next < 0) {
+            next = 0;
+        }
+        post.setAiTokensTotal(next);
+        post.setUpdatedAt(Instant.now());
+        return next;
+    }
+
     @Transactional
     public PostResponse update(Long workspaceId, Long id, PostPayload payload) {
         PostEntity post = postRepository.findByIdAndWorkspaceId(id, workspaceId)
@@ -463,6 +484,7 @@ public class PostService {
                 post.isLateScheduleReleased(),
                 post.isChannelSyndicationBlocked(),
                 post.isSocialPublishEnabled(),
+                post.getAiTokensTotal(),
                 publishChannelTypes,
                 outbound
         );

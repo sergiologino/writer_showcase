@@ -235,7 +235,15 @@ export function PostEditorPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">{isNew ? 'Новый материал' : 'Редактирование'}</h1>
+        <div>
+          <h1 className="text-xl font-semibold">{isNew ? 'Новый материал' : 'Редактирование'}</h1>
+          {!isNew && existing.data ? (
+            <p className="mt-0.5 text-xs text-[var(--muted)]">
+              Токены ИИ (по статье):{' '}
+              <span className="tabular-nums text-[var(--text)]">{existing.data.aiTokensTotal ?? 0}</span>
+            </p>
+          ) : null}
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
@@ -257,6 +265,8 @@ export function PostEditorPage() {
         open={studioOpen}
         onClose={() => setStudioOpen(false)}
         originalBody={bodySourceWatch ?? ''}
+        postId={isNew ? null : Number(id)}
+        articleTokensTotal={!isNew ? (existing.data?.aiTokensTotal ?? 0) : 0}
         onApplyToArticle={(md) => {
           setValue('bodySource', md, { shouldDirty: true })
           setAiGeneratedOverride(true)

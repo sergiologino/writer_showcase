@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useId, useState } from 'react'
 import { studioInvoke, type StudioAiRequest } from '../api/aiStudio'
 import { ApiError } from '../api/client'
@@ -5,9 +6,25 @@ import { extractAssistantText } from '../lib/aiOutputParse'
 
 type StudioMode = 'text' | 'split' | 'image' | 'video'
 
-type Iter = { id: string; label: string; mode: StudioMode; prompt: string; output: string; ok: boolean | null }
+type Iter = {
+  id: string
+  label: string
+  mode: StudioMode
+  prompt: string
+  output: string
+  ok: boolean | null
+  tokensUsed: number | null
+  postTotal: number | null
+}
 
-function newIter(mode: StudioMode, prompt: string, output: string, ok: boolean | null): Iter {
+function newIter(
+  mode: StudioMode,
+  prompt: string,
+  output: string,
+  ok: boolean | null,
+  tokensUsed: number | null,
+  postTotal: number | null
+): Iter {
   return {
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
     label: `Шаг ${mode}`,
@@ -15,6 +32,8 @@ function newIter(mode: StudioMode, prompt: string, output: string, ok: boolean |
     prompt,
     output,
     ok,
+    tokensUsed,
+    postTotal,
   }
 }
 
@@ -77,9 +96,21 @@ export interface AiStudioModalProps {
   /** Текст статьи (Markdown) как контекст. */
   originalBody: string
   onApplyToArticle: (markdown: string) => void
+  /** Сохранённый пост — для накопительного учёта токенов; у черновика без id нет. */
+  postId?: number | null
+  /** Сумма токенов по статье до текущей сессии (из API). */
+  articleTokensTotal?: number
 }
 
-export function AiStudioModal({ open, onClose, originalBody, onApplyToArticle }: AiStudioModalProps) {
+export function AiStudioModal({
+  open,
+  onClose,
+  originalBody,
+  onApplyToArticle,
+  postId = null,
+  articleTokensTotal = 0,
+}: AiStudioModalProps) {
+  const qc = useQueryClient()
   const titleId = useId()
   const [mode, setMode] = useState<StudioMode>('text')
   const [prompt, setPrompt] = useState('')
@@ -115,17 +146,24 @@ export function AiStudioModal({ open, onClose, originalBody, onApplyToArticle }:
         metadata: { 'publisher.studio.mode': mode },
         externalUserId: null,
         networkName: null,
+        postId: postId ?? undefined,
       }
       const res = await studioInvoke(body)
       setLastRaw(res.output)
-      const text = extractAssistantText(res.output)
-      setIters((prev) => [...prev, newIter(mode, prompt, text, res.ok)])
+      const text = res.output != null && res.output.trim() !== '' ? extractAssistantText(res.output) : ''
+      if (postId) {
+        void qc.invalidateQueries({ queryKey: ['post', String(postId)] })
+      }
+      setIters((prev) => [
+        ...prev,
+        newIter(mode, prompt, text, res.ok, res.tokensUsed ?? null, res.postTokensTotal ?? null),
+      ])
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Запрос не удался')
     } finally {
       setPending(false)
     }
-  }, [mode, originalBody, prompt, refFile])
+  }, [mode, originalBody, prompt, postId, refFile, qc])
 
   useEffect(() => {
     if (iters.length === 0) {
@@ -155,6 +193,16 @@ export function AiStudioModal({ open, onClose, originalBody, onApplyToArticle }:
               Запросы идут в noteapp-ai-integration с маршрутом приоритетов; ответы можно вставить в статью (текст) или
               скопировать.
             </p>
+            {postId ? (
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                Токены по статье (накопительно):{' '}
+                <span className="font-medium text-[var(--text)] tabular-nums">{articleTokensTotal}</span>
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-amber-800 dark:text-amber-200/90">
+                Сохраните материал — затем токены будут считаться по статье.
+              </p>
+            )}
           </div>
           <button
             type="button"
@@ -266,6 +314,22 @@ export function AiStudioModal({ open, onClose, originalBody, onApplyToArticle }:
                   <pre className="min-h-0 min-w-0 max-h-64 flex-1 resize-y overflow-auto whitespace-pre-wrap break-words font-sans text-sm">
                     {active.output || '—'}
                   </pre>
+                  {active.tokensUsed != null || active.postTotal != null ? (
+                    <p className="text-xs text-[var(--muted)]">
+                      {active.tokensUsed != null ? (
+                        <>
+                          За запрос: <span className="tabular-nums text-[var(--text)]">{active.tokensUsed}</span> ток.
+                        </>
+                      ) : null}
+                      {active.tokensUsed != null && active.postTotal != null ? ' · ' : null}
+                      {active.postTotal != null ? (
+                        <>
+                          Всего по статье:{' '}
+                          <span className="font-medium tabular-nums text-[var(--text)]">{active.postTotal}</span>
+                        </>
+                      ) : null}
+                    </p>
+                  ) : null}
                   {active.mode === 'text' || active.mode === 'split' ? (
                     <button
                       type="button"

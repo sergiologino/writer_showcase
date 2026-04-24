@@ -101,6 +101,8 @@ export interface PostResponse {
    */
   channelSyndicationBlocked: boolean
   socialPublishEnabled: boolean
+  /** Накопительно: токены по вызовам AI для этой статьи. */
+  aiTokensTotal: number
   /** Пустой массив при включённой соцпубликации = все каналы workspace. */
   publishChannelTypes: ChannelType[]
   outbound: PostOutboundInfo[]

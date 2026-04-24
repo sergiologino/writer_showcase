@@ -93,6 +93,9 @@ public class PostEntity {
     @Column(name = "social_publish_enabled", nullable = false)
     private boolean socialPublishEnabled = true;
 
+    @Column(name = "ai_tokens_total", nullable = false)
+    private long aiTokensTotal;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "post_tags",
@@ -129,6 +132,15 @@ public class PostEntity {
         this.aiGenerated = aiGenerated;
         this.createdAt = now;
         this.updatedAt = now;
+        this.aiTokensTotal = 0L;
+    }
+
+    public long getAiTokensTotal() {
+        return aiTokensTotal;
+    }
+
+    public void setAiTokensTotal(long aiTokensTotal) {
+        this.aiTokensTotal = aiTokensTotal;
     }
 
     public Long getId() {
@@ -189,6 +201,10 @@ public class PostEntity {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
     public Instant getPublishedAt() {

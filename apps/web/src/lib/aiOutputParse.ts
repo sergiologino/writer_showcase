@@ -7,36 +7,70 @@ export function extractAssistantText(raw: string | null | undefined): string {
   if (!t) {
     return ''
   }
+  let payload = t
   try {
-    const j = JSON.parse(t) as unknown
-    if (typeof j === 'string') {
-      return j.trim()
-    }
-    if (typeof j === 'object' && j !== null) {
-      const o = j as Record<string, unknown>
-      const choices = o.choices
-      if (Array.isArray(choices) && choices[0] && typeof choices[0] === 'object' && choices[0] !== null) {
-        const c0 = choices[0] as Record<string, unknown>
-        const msg = c0.message
-        if (msg && typeof msg === 'object' && msg !== null) {
-          const m = msg as Record<string, unknown>
-          if (typeof m.content === 'string') {
-            return m.content
-          }
-        }
+    const outer = JSON.parse(t) as unknown
+    if (typeof outer === 'object' && outer !== null && 'response' in outer) {
+      const r = (outer as { response: unknown }).response
+      if (r === null || r === undefined) {
+        return ''
       }
-      if (typeof o.content === 'string') {
-        return o.content
+      if (typeof r === 'string') {
+        payload = r.trim()
+      } else {
+        payload = JSON.stringify(r)
       }
-      if (typeof o.text === 'string') {
-        return o.text
-      }
-      if (typeof o.output === 'string') {
-        return o.output
-      }
+    } else {
+      return extractFromPayloadJson(outer)
     }
   } catch {
-    /* не JSON */
+    return t
   }
-  return t
+  return extractFromPayloadString(payload)
+}
+
+function extractFromPayloadString(payload: string): string {
+  const p = payload.trim()
+  if (!p) {
+    return ''
+  }
+  try {
+    return extractFromPayloadJson(JSON.parse(p) as unknown)
+  } catch {
+    return p
+  }
+}
+
+function extractFromPayloadJson(j: unknown): string {
+  if (typeof j === 'string') {
+    return j.trim()
+  }
+  if (typeof j === 'object' && j !== null) {
+    const o = j as Record<string, unknown>
+    const choices = o.choices
+    if (Array.isArray(choices) && choices[0] && typeof choices[0] === 'object' && choices[0] !== null) {
+      const c0 = choices[0] as Record<string, unknown>
+      const msg = c0.message
+      if (msg && typeof msg === 'object' && msg !== null) {
+        const m = msg as Record<string, unknown>
+        if (typeof m.content === 'string') {
+          return m.content
+        }
+      }
+    }
+    if (typeof o.content === 'string') {
+      return o.content
+    }
+    if (typeof o.text === 'string') {
+      return o.text
+    }
+    if (typeof o.output === 'string') {
+      return o.output
+    }
+  }
+  try {
+    return String(j)
+  } catch {
+    return ''
+  }
 }

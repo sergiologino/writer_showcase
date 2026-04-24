@@ -162,6 +162,9 @@ export function FeedPage() {
                     {statusLabel[post.status]}
                   </span>
                   <span className="text-xs text-[var(--muted)]">{post.visibility}</span>
+                  <span className="text-xs text-[var(--muted)]" title="Накопительно по вызовам AI для этой статьи">
+                    ИИ: {post.aiTokensTotal ?? 0} ток.
+                  </span>
                 </div>
                 <h2 className="mt-2 text-lg font-medium text-[var(--text)]">{post.title}</h2>
                 {post.excerpt ? (

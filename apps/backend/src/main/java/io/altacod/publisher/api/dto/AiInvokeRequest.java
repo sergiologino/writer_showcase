@@ -19,6 +19,8 @@ public record AiInvokeRequest(
         /** Например {@code chat}; по умолчанию {@code chat}. */
         @Size(max = 64) String requestType,
         /** Попадает в {@code metadata} запроса к интеграции. */
-        Map<String, String> metadata
+        Map<String, String> metadata,
+        /** Накопительный счётчик токенов по статье (опционально). */
+        Long postId
 ) {
 }

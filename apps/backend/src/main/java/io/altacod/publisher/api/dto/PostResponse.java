@@ -28,6 +28,8 @@ public record PostResponse(
         boolean lateScheduleReleased,
         boolean channelSyndicationBlocked,
         boolean socialPublishEnabled,
+        /** Накопительно: сумма токенов по вызовам AI для этой статьи. */
+        long aiTokensTotal,
         /** Явно выбранные каналы; пустой список при включённой соцпубликации означает «все каналы workspace». */
         List<ChannelType> publishChannelTypes,
         List<PostOutboundInfoDto> outbound

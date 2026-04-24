@@ -58,7 +58,7 @@ public class HttpIntegrationAiClient implements IntegrationAiClient {
     @Override
     public AiInvokeResponse send(NoteappAiProcessRequest request) {
         if (!props.isConfigured()) {
-            return new AiInvokeResponse(false, null, "NOT_CONFIGURED");
+            return AiInvokeResponse.ofFailure(null, "NOT_CONFIGURED");
         }
         SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();
         rf.setConnectTimeout(Duration.ofMillis(props.getConnectTimeoutMs()));
@@ -79,11 +79,11 @@ public class HttpIntegrationAiClient implements IntegrationAiClient {
             return mapAiServiceResponse(body);
         } catch (RestClientResponseException ex) {
             String errBody = ex.getResponseBodyAsString();
-            return new AiInvokeResponse(false, errBody, "HTTP_" + ex.getStatusCode().value());
+            return AiInvokeResponse.ofFailure(errBody, "HTTP_" + ex.getStatusCode().value());
         } catch (RestClientException ex) {
-            return new AiInvokeResponse(false, null, "UPSTREAM_ERROR");
+            return AiInvokeResponse.ofFailure(null, "UPSTREAM_ERROR");
         } catch (Exception ex) {
-            return new AiInvokeResponse(false, null, "SERIALIZATION_ERROR");
+            return AiInvokeResponse.ofFailure(null, "SERIALIZATION_ERROR");
         }
     }
 
@@ -95,11 +95,12 @@ public class HttpIntegrationAiClient implements IntegrationAiClient {
             if (!ok) {
                 String err = root.path("errorMessage").asText("");
                 String code = err.isEmpty() ? status : err;
-                return new AiInvokeResponse(false, body, code);
+                return AiInvokeResponse.ofFailure(body, code);
             }
-            return new AiInvokeResponse(true, body, null);
+            AiIntegrationTextExtractor.Parsed p = AiIntegrationTextExtractor.parseSuccessBody(body, objectMapper);
+            return AiInvokeResponse.ofSuccess(p.displayText(), p.tokensUsed(), null);
         } catch (Exception e) {
-            return new AiInvokeResponse(true, body, null);
+            return AiInvokeResponse.ofSuccess(body == null ? "" : body.trim(), null, null);
         }
     }
 }

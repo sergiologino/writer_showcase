@@ -45,20 +45,32 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtAuthFilter jwtAuthFilter,
-            PublisherProperties publisherProperties
+            PublisherProperties publisherProperties,
+            Oauth2ProvidersStatus oauth2ProvidersStatus,
+            OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler,
+            DelegatingOAuth2UserService delegatingOAuth2UserService
     ) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(c -> c.configurationSource(corsConfigurationSource(publisherProperties)))
-                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(s -> s.sessionCreationPolicy(
+                        oauth2ProvidersStatus.isAny()
+                                ? SessionCreationPolicy.IF_REQUIRED
+                                : SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers("/api/engagement/**").authenticated()
                         .anyRequest().authenticated()
-                )
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                );
+        if (oauth2ProvidersStatus.isAny()) {
+            http.oauth2Login(
+                    o -> o.userInfoEndpoint(u -> u.userService(delegatingOAuth2UserService))
+                            .successHandler(oAuth2LoginSuccessHandler));
+        }
+        http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 

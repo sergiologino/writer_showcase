@@ -1,0 +1,12 @@
+-- OAuth-only пользователи: password_hash NULL; (provider, subject) — уникальная привязка
+ALTER TABLE users
+    ALTER COLUMN password_hash DROP NOT NULL;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS oauth_provider VARCHAR(32);
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS oauth_subject VARCHAR(255);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_oauth_provider_subject
+    ON users (oauth_provider, oauth_subject)
+    WHERE oauth_provider IS NOT NULL AND oauth_subject IS NOT NULL;

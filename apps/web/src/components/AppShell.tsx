@@ -2,27 +2,13 @@ import { Link, Outlet, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ApiError, apiFetch, clearSession } from '../api/client'
 import type { MeResponse } from '../api/types'
-import { applyTheme, getStoredTheme, type Theme } from '../lib/theme'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
+import { PublisherWordmark } from './PublisherWordmark'
+import { ThemeToggleButton } from './ThemeToggleButton'
+import { UserAvatarMenu } from './UserAvatarMenu'
 
 export function AppShell() {
   const navigate = useNavigate()
-  const [themeChoice, setThemeChoice] = useState<Theme>(() => getStoredTheme())
-
-  useEffect(() => {
-    applyTheme(themeChoice)
-  }, [themeChoice])
-
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = () => {
-      if (getStoredTheme() === 'system') {
-        applyTheme('system')
-      }
-    }
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [])
 
   const me = useQuery({
     queryKey: ['me'],
@@ -60,10 +46,8 @@ export function AppShell() {
     <div className="min-h-screen">
       <header className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
-          <div className="flex items-center gap-6">
-            <Link to="/app/feed" className="text-sm font-semibold tracking-tight text-[var(--text)]">
-              Publisher
-            </Link>
+          <div className="flex min-w-0 items-center gap-6">
+            <PublisherWordmark to="/app/feed" size="md" />
             <nav className="hidden gap-4 text-sm text-[var(--muted)] sm:flex">
               <Link className="hover:text-[var(--text)]" to="/app/feed">
                 Лента
@@ -73,9 +57,6 @@ export function AppShell() {
               </Link>
               <Link className="hover:text-[var(--text)]" to="/app/media">
                 Медиа
-              </Link>
-              <Link className="hover:text-[var(--text)]" to="/app/profile">
-                Профиль
               </Link>
               <Link className="hover:text-[var(--text)]" to="/app/channels">
                 Каналы
@@ -87,39 +68,10 @@ export function AppShell() {
               ) : null}
             </nav>
           </div>
-          <div className="flex items-center gap-3">
-            <label className="hidden text-xs text-[var(--muted)] sm:block">
-              Тема
-              <select
-                className="ml-2 rounded-md border border-[var(--border)] bg-[var(--bg)] px-2 py-1 text-xs text-[var(--text)]"
-                value={themeChoice}
-                onChange={(e) => setThemeChoice(e.target.value as Theme)}
-              >
-                <option value="system">Системная</option>
-                <option value="light">Светлая</option>
-                <option value="dark">Тёмная</option>
-              </select>
-            </label>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <ThemeToggleButton />
             {me.isSuccess ? (
-              <>
-                <Link
-                  className="max-w-[10rem] truncate text-xs text-[var(--muted)] hover:text-[var(--text)] hover:underline"
-                  to="/app/profile"
-                  title={me.data.user.email}
-                >
-                  {me.data.user.displayName}
-                </Link>
-                <button
-                  type="button"
-                  className="rounded-md border border-[var(--border)] px-3 py-1.5 text-xs font-medium hover:bg-[var(--bg)]"
-                  onClick={() => {
-                    clearSession()
-                    navigate('/login')
-                  }}
-                >
-                  Выйти
-                </button>
-              </>
+              <UserAvatarMenu displayName={me.data.user.displayName} email={me.data.user.email} />
             ) : me.isPending ? (
               <span className="text-xs text-[var(--muted)]">Проверка сессии…</span>
             ) : null}

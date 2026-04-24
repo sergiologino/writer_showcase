@@ -85,6 +85,9 @@ publisher:
   public-site:
     # Базовый URL публичного фронта для ссылок в TG/VK (например http://localhost:5173)
     base-url: ${PUBLIC_SITE_BASE_URL:}
+  oauth2:
+    # URL SPA: редирект после Google/Yandex (без / на конце). Должен совпадать с фронтом, куда ведут кнопки «Войти».
+    frontend-base-url: ${PUBLISHER_OAUTH2_FRONTEND_URL:http://localhost:5173}
   channels:
     poll-delay-ms: ${PUBLISHER_CHANNEL_POLL_MS:2000}
     retry-poll-ms: ${PUBLISHER_CHANNEL_RETRY_POLL_MS:45000}

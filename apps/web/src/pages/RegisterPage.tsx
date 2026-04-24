@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { register } from '../api/auth'
 import { ApiError } from '../api/client'
+import { Oauth2LoginButtons } from '../components/Oauth2LoginButtons'
+import { PublisherWordmark } from '../components/PublisherWordmark'
 
 function safeInternalRedirect(raw: string | null): string | null {
   if (!raw || !raw.startsWith('/') || raw.startsWith('//')) {
@@ -33,6 +35,9 @@ export function RegisterPage() {
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4">
+      <div className="-mt-4 mb-6">
+        <PublisherWordmark size="lg" />
+      </div>
       <h1 className="text-2xl font-semibold tracking-tight">Регистрация</h1>
       <p className="mt-1 text-sm text-[var(--muted)]">Создаётся личный workspace автоматически</p>
       <form
@@ -90,6 +95,7 @@ export function RegisterPage() {
           {mutation.isPending ? 'Создание…' : 'Создать аккаунт'}
         </button>
       </form>
+      <Oauth2LoginButtons />
       <p className="mt-6 text-center text-sm text-[var(--muted)]">
         Уже есть аккаунт?{' '}
         <Link

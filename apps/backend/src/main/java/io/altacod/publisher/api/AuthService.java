@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Optional;
 
 @Service
 public class AuthService {
@@ -133,6 +134,71 @@ public class AuthService {
         UserEntity user = existing.getUser();
         existing.revoke(now);
         refreshTokenRepository.save(existing);
+        return issueTokens(user);
+    }
+
+    @Transactional
+    public TokenResponse signInWithOAuth(
+            String provider,
+            String subject,
+            String email,
+            String displayName
+    ) {
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "OAuth: email is required");
+        }
+        if (provider == null || provider.isBlank() || subject == null || subject.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "OAuth: subject or provider is missing");
+        }
+        email = email.trim().toLowerCase();
+        if (displayName == null || displayName.isBlank()) {
+            int at = email.indexOf('@');
+            displayName = at > 0 ? email.substring(0, at) : email;
+        } else {
+            displayName = displayName.trim();
+        }
+        String prov = provider.trim();
+        String sub = subject.trim();
+        log.info("AuthService.signInWithOAuth: provider={} subLen={} emailLen={}", prov, sub.length(), email.length());
+        Optional<UserEntity> byOauth = userRepository.findByOauthProviderAndOauthSubject(prov, sub);
+        if (byOauth.isPresent()) {
+            UserEntity u = byOauth.get();
+            refreshTokenRepository.revokeAllForUser(u.getId(), Instant.now());
+            return issueTokens(u);
+        }
+        Optional<UserEntity> byEmail = userRepository.findByEmailIgnoreCase(email);
+        if (byEmail.isPresent()) {
+            UserEntity u = byEmail.get();
+            if (u.getOauthProvider() != null && u.getOauthSubject() != null) {
+                if (!u.getOauthProvider().equals(prov) || !u.getOauthSubject().equals(sub)) {
+                    log.warn("AuthService.signInWithOAuth: OAuth conflict for userId={}", u.getId());
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "This email is already linked to another sign-in");
+                }
+            }
+            u.setOauthProvider(prov);
+            u.setOauthSubject(sub);
+            u.touch(Instant.now());
+            userRepository.save(u);
+            refreshTokenRepository.revokeAllForUser(u.getId(), Instant.now());
+            return issueTokens(u);
+        }
+        Instant now = Instant.now();
+        var user = new UserEntity(
+                email,
+                null,
+                displayName,
+                null,
+                null,
+                "system",
+                now
+        );
+        user.setOauthProvider(prov);
+        user.setOauthSubject(sub);
+        userRepository.save(user);
+        String workspaceSlug = Slugify.uniqueSlug(displayName + "-space", workspaceRepository::existsBySlug);
+        var workspace = new WorkspaceEntity(displayName + " workspace", workspaceSlug, user, now);
+        workspaceRepository.save(workspace);
+        membershipRepository.save(new MembershipEntity(workspace, user, MembershipRole.OWNER, now));
         return issueTokens(user);
     }
 

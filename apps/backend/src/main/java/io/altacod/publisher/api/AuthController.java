@@ -1,13 +1,16 @@
 package io.altacod.publisher.api;
 
 import io.altacod.publisher.api.dto.LoginRequest;
+import io.altacod.publisher.api.dto.Oauth2ProvidersResponse;
 import io.altacod.publisher.api.dto.RefreshRequest;
 import io.altacod.publisher.api.dto.RegisterRequest;
 import io.altacod.publisher.api.dto.TokenResponse;
+import io.altacod.publisher.security.Oauth2ProvidersStatus;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,9 +24,19 @@ public class AuthController {
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final AuthService authService;
+    private final Oauth2ProvidersStatus oauth2ProvidersStatus;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, Oauth2ProvidersStatus oauth2ProvidersStatus) {
         this.authService = authService;
+        this.oauth2ProvidersStatus = oauth2ProvidersStatus;
+    }
+
+    @GetMapping("/oauth2/providers")
+    public Oauth2ProvidersResponse oauth2Providers() {
+        return new Oauth2ProvidersResponse(
+                oauth2ProvidersStatus.isGoogle(),
+                oauth2ProvidersStatus.isYandex()
+        );
     }
 
     @PostMapping("/register")

@@ -32,6 +32,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
         return path.startsWith("/api/auth/")
+                || path.startsWith("/oauth2/")
+                || path.startsWith("/login/oauth2/")
                 || "OPTIONS".equalsIgnoreCase(request.getMethod());
     }
 

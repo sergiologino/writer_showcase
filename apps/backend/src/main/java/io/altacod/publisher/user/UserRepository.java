@@ -8,5 +8,7 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     Optional<UserEntity> findByEmailIgnoreCase(String email);
 
+    Optional<UserEntity> findByOauthProviderAndOauthSubject(String oauthProvider, String oauthSubject);
+
     boolean existsByEmailIgnoreCase(String email);
 }

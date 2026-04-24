@@ -2,6 +2,7 @@ import type { ReactElement } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { FeedPage } from './pages/FeedPage'
+import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { LoginPage } from './pages/LoginPage'
 import { MediaLibraryPage } from './pages/MediaLibraryPage'
 import { PostEditorPage } from './pages/PostEditorPage'
@@ -24,6 +25,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/blog/:workspaceSlug" element={<PublicBlogPage />} />
       <Route path="/blog/:workspaceSlug/p/:postSlug" element={<PublicPostPage />} />
       <Route

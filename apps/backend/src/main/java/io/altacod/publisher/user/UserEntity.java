@@ -20,8 +20,14 @@ public class UserEntity {
     @Column(nullable = false, unique = true, length = 320)
     private String email;
 
-    @Column(name = "password_hash", nullable = false)
+    @Column(name = "password_hash")
     private String passwordHash;
+
+    @Column(name = "oauth_provider", length = 32)
+    private String oauthProvider;
+
+    @Column(name = "oauth_subject", length = 255)
+    private String oauthSubject;
 
     @Column(name = "display_name", nullable = false)
     private String displayName;
@@ -72,6 +78,22 @@ public class UserEntity {
 
     public String getPasswordHash() {
         return passwordHash;
+    }
+
+    public String getOauthProvider() {
+        return oauthProvider;
+    }
+
+    public String getOauthSubject() {
+        return oauthSubject;
+    }
+
+    public void setOauthProvider(String oauthProvider) {
+        this.oauthProvider = oauthProvider;
+    }
+
+    public void setOauthSubject(String oauthSubject) {
+        this.oauthSubject = oauthSubject;
     }
 
     public String getDisplayName() {

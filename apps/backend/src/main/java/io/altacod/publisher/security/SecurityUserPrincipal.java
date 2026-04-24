@@ -5,6 +5,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -14,12 +15,14 @@ public class SecurityUserPrincipal implements UserDetails {
     private final String email;
     private final String passwordHash;
     private final String displayName;
+    private final boolean admin;
 
-    public SecurityUserPrincipal(UserEntity user) {
+    public SecurityUserPrincipal(UserEntity user, boolean effectiveAdmin) {
         this.id = user.getId();
         this.email = user.getEmail();
         this.passwordHash = user.getPasswordHash();
         this.displayName = user.getDisplayName();
+        this.admin = effectiveAdmin;
     }
 
     public Long getId() {
@@ -34,9 +37,18 @@ public class SecurityUserPrincipal implements UserDetails {
         return displayName;
     }
 
+    public boolean isAdmin() {
+        return admin;
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_USER"));
+        List<GrantedAuthority> a = new ArrayList<>();
+        a.add(new SimpleGrantedAuthority("ROLE_USER"));
+        if (admin) {
+            a.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        }
+        return a;
     }
 
     @Override

@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import java.time.Instant;
 import java.util.List;
 
 public record PostPayload(
@@ -27,6 +28,10 @@ public record PostPayload(
          * Явный список каналов для кросс-поста. null или пустой список при {@code socialPublishEnabled != false} —
          * все включённые каналы workspace. Непустой — только перечисленные (ВК, ОК и т.д.).
          */
-        List<ChannelType> publishChannels
+        List<ChannelType> publishChannels,
+        /**
+         * Плановая дата/время публикации (офлайн-клиент). null — сразу по текущей логике статуса.
+         */
+        Instant scheduledPublishAt
 ) {
 }

@@ -17,6 +17,8 @@ export interface UserSummary {
   timezone: string | null
   /** Предпочитаемая тема в аккаунте; null — не задано (используйте переключатель в шапке). */
   theme: 'light' | 'dark' | 'system' | null
+  /** Глобальная роль: настройка нейросетей, приоритеты маршрутизации. */
+  isAdmin: boolean
 }
 
 export interface UpdateProfilePayload {
@@ -87,6 +89,17 @@ export interface PostResponse {
   createdAt: string
   updatedAt: string
   publishedAt: string | null
+  /** Плановая публикация (UTC ISO); null — без расписания. */
+  scheduledPublishAt: string | null
+  /** Синхронизация с сервера наступила после запланированного времени. */
+  scheduleMissed: boolean
+  /** Автор внёс правки после пропущенного окна (можно вручную отпустить в каналы). */
+  lateScheduleReleased: boolean
+  /**
+   * Кросс-пост в соцсети заблокирован до явного сохранения после правок
+   * (например, пропущенное расписание).
+   */
+  channelSyndicationBlocked: boolean
   socialPublishEnabled: boolean
   /** Пустой массив при включённой соцпубликации = все каналы workspace. */
   publishChannelTypes: ChannelType[]

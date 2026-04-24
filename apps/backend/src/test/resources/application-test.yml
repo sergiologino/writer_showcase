@@ -28,6 +28,8 @@ publisher:
   storage:
     local-root: ${STORAGE_LOCAL_ROOT:target/test-storage}
     max-upload-bytes: 1048576
+  admin-bootstrap:
+    enabled: false
   redis:
     enabled: false
   public-site:

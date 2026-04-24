@@ -120,6 +120,9 @@ public class ChannelDispatchService {
         if (!post.isSocialPublishEnabled()) {
             return;
         }
+        if (post.isChannelSyndicationBlocked()) {
+            return;
+        }
         Long wsId = post.getWorkspace().getId();
         List<WorkspaceChannelEntity> channels =
                 channelRepository.findByWorkspaceIdAndEnabledIsTrueOrderByChannelTypeAsc(wsId);
@@ -169,6 +172,9 @@ public class ChannelDispatchService {
         }
         if (!post.isSocialPublishEnabled()) {
             recordFailureTerminal(post, type, "Social publishing disabled for post; retries stopped", now);
+            return;
+        }
+        if (post.isChannelSyndicationBlocked()) {
             return;
         }
         Long wsId = post.getWorkspace().getId();

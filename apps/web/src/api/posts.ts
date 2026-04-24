@@ -38,6 +38,8 @@ export interface PostPayload {
   socialPublishEnabled?: boolean
   /** Явный список каналов; при включённой соцпубликации пустой массив = все каналы workspace. */
   publishChannels?: ChannelType[] | null
+  /** План публикации; null — не задано (при create) или оставить как есть (если бэкенд не меняет при null). */
+  scheduledPublishAt?: string | null
 }
 
 export function createPost(payload: PostPayload): Promise<PostResponse> {

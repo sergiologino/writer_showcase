@@ -129,14 +129,20 @@ PUBLIC_SITE_BASE_URL=http://localhost:5173
 | `REDIS_PORT` | Порт Redis | `6379` |
 | `REDIS_PASSWORD` | Пароль Redis, если включён | часто пусто locally |
 | `PUBLIC_SITE_BASE_URL` | Базовый адрес сайта для **ссылок в Telegram/ВК** | `http://localhost:5173` |
-| `AI_INTEGRATION_BASE_URL` | Адрес сервиса ИИ (noteapp-ai-integration) | пусто — блок ИИ недоступен; иначе URL вида `http://localhost:…` |
+| `AI_INTEGRATION_BASE_URL` | Адрес сервиса ИИ (noteapp-ai-integration) | пусто — блок ИИ недоступен; иначе URL; **приоритетнее** `AI_INTEGRATION_URL`, если заданы оба |
+| `AI_INTEGRATION_URL` | Дублирует смысл базового URL (как в других сервисах) | например прод: `https://sergiologino-zettelkastenapp-ai-integration-bce3.twc1.net` |
 | `AI_INTEGRATION_API_KEY` | Ключ доступа к сервису ИИ | секрет, как выдаёт сервис |
 | `INTEGRATION_AI_BASE_URL` | Дублирует смысл `AI_INTEGRATION_*` для совместимости | можно не задавать, если задан `AI_INTEGRATION_BASE_URL` |
 | `INTEGRATION_AI_API_KEY` | То же для ключа | опционально |
 | `AI_INTEGRATION_API_KEY_HEADER` | Заголовок с ключом | по умолчанию `X-API-Key` |
 | `AI_INTEGRATION_PROCESS_PATH` | Путь метода обработки на сервисе ИИ | по умолчанию `/api/ai/process` |
+| `AI_INTEGRATION_AVAILABLE_NETWORKS_PATH` | Путь `GET` списка сетей (тот же ключ, что и для `process`) | по умолчанию `/api/ai/networks/available` |
+| `INTEGRATION_AI_AVAILABLE_NETWORKS_PATH` | Синоним пути списка сетей | опционально |
 | `AI_INTEGRATION_CONNECT_TIMEOUT_MS` | Таймаут соединения с ИИ | `5000` |
 | `AI_INTEGRATION_READ_TIMEOUT_MS` | Таймаут чтения ответа ИИ | `120000` |
+| `ADMIN_EMAILS` | Список email с правами глобального админа (через запятую) | например `you@domain.com`; дополняет `is_admin` в БД — см. `docs/ai/AI_INTEGRATION.md` |
+| `PUBLISHER_ADMIN_BOOTSTRAP_ENABLED` | Создать/пометить админа при старте (dev) | `false` — см. `docs/ai/AI_INTEGRATION.md` |
+| `PUBLISHER_ADMIN_BOOTSTRAP_EMAIL` / `PASSWORD` / `DISPLAY_NAME` | Учётка bootstrap-админа | значения по умолчанию в коде, в проде не использовать без смены пароля |
 | `PUBLISHER_CHANNEL_POLL_MS` | Как часто опрашивается очередь исходящих сообщений (мс) | по умолчанию `2000` |
 | `PUBLISHER_CHANNEL_RETRY_POLL_MS` | Как часто проверяются отложенные повторы отправки (мс) | по умолчанию `45000` |
 | `PUBLISHER_CHANNEL_MAX_ATTEMPTS` | Сколько раз система будет повторять неудачную отправку в канал | по умолчанию `8` |
@@ -146,6 +152,8 @@ PUBLIC_SITE_BASE_URL=http://localhost:5173
 | `PUBLISHER_CHANNEL_RETRY_BATCH` | Сколько отложенных заданий обрабатывать за один проход | `40` |
 
 Для чисто ручного сценария «открыл сайт, прошёл сценарии» чаще всего хватает: **`DATASOURCE_*`**, **`JWT_SECRET`**, при проверке TG/VK и ссылок — **`PUBLIC_SITE_BASE_URL`**. CORS для localhost обычно **ничего не задают** — уже настроено в `application.yml`.
+
+Сводно по **интеграции с нейросетями** (доп. переменные, smoke-проверки, bootstrap-админ): [`docs/ai/AI_INTEGRATION.md`](ai/AI_INTEGRATION.md).
 
 ---
 

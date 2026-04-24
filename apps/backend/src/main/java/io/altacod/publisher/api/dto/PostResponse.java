@@ -23,6 +23,10 @@ public record PostResponse(
         Instant createdAt,
         Instant updatedAt,
         Instant publishedAt,
+        Instant scheduledPublishAt,
+        boolean scheduleMissed,
+        boolean lateScheduleReleased,
+        boolean channelSyndicationBlocked,
         boolean socialPublishEnabled,
         /** Явно выбранные каналы; пустой список при включённой соцпубликации означает «все каналы workspace». */
         List<ChannelType> publishChannelTypes,

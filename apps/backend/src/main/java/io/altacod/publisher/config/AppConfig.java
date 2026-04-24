@@ -13,6 +13,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         PublisherStorageProperties.class,
         PublisherRateLimitProperties.class,
         IntegrationAiProperties.class,
+        PublisherSecurityProperties.class,
         PublisherRedisProperties.class,
         PublisherPublicSiteProperties.class,
         PublisherChannelDeliveryProperties.class

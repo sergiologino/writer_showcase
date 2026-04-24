@@ -6,6 +6,7 @@ public record UserSummaryDto(
         String displayName,
         String locale,
         String timezone,
-        String theme
+        String theme,
+        boolean isAdmin
 ) {
 }

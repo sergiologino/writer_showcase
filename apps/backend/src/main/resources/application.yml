@@ -31,6 +31,9 @@ publisher:
   http:
     use-system-proxies: ${PUBLISHER_HTTP_USE_SYSTEM_PROXIES:true}
     prefer-ipv4: ${PUBLISHER_HTTP_PREFER_IPV4:false}
+  security:
+    # Список email с ROLE_ADMIN (как в других сервисах: ADMIN_EMAILS=one@a.com,other@b.com)
+    admin-emails: ${ADMIN_EMAILS:}
   jwt:
     secret: ${JWT_SECRET:dev-secret-change-min-256-bits-for-production-use-256bits!}
     access-ttl-minutes: ${JWT_ACCESS_TTL_MINUTES:60}
@@ -41,17 +44,34 @@ publisher:
     api-per-minute: ${RATE_LIMIT_API_PER_MINUTE:400}
   integration-ai:
     # noteapp-ai-integration (см. docs/ai/EXTERNAL_SERVICES_INTEGRATION.md)
-    base-url: ${AI_INTEGRATION_BASE_URL:${INTEGRATION_AI_BASE_URL:}}
+    # AI_INTEGRATION_URL — тот же смысл, что и в других ваших сервисах; приоритет: AI_INTEGRATION_BASE_URL
+    base-url: ${AI_INTEGRATION_BASE_URL:${AI_INTEGRATION_URL:${INTEGRATION_AI_BASE_URL:}}}
     api-key: ${AI_INTEGRATION_API_KEY:${INTEGRATION_AI_API_KEY:}}
     api-key-header: ${AI_INTEGRATION_API_KEY_HEADER:${INTEGRATION_AI_API_KEY_HEADER:X-API-Key}}
     process-path: ${AI_INTEGRATION_PROCESS_PATH:${INTEGRATION_AI_PROCESS_PATH:/api/ai/process}}
+    # GET-список сетей (админ UI / справка); тот же X-API-Key, что и для process
+    available-networks-path: ${AI_INTEGRATION_AVAILABLE_NETWORKS_PATH:${INTEGRATION_AI_AVAILABLE_NETWORKS_PATH:/api/ai/networks/available}}
     connect-timeout-ms: ${AI_INTEGRATION_CONNECT_TIMEOUT_MS:${INTEGRATION_AI_CONNECT_TIMEOUT_MS:5000}}
     read-timeout-ms: ${AI_INTEGRATION_READ_TIMEOUT_MS:${INTEGRATION_AI_READ_TIMEOUT_MS:120000}}
+    # При старте: admin-login в noteapp-ai-integration + POST /api/admin/clients/{id}/assign-user
+    # (создаётся user_accounts «технический» пользователь; пароль ему не нужен для server-to-server)
+    ensure-client-user-link: ${AI_INTEGRATION_ENSURE_CLIENT_USER_LINK:true}
+    admin-username: ${AI_INTEGRATION_ADMIN_USERNAME:admin}
+    admin-password: ${AI_INTEGRATION_ADMIN_PASSWORD:admin}
+    assign-builtin-user-email: ${AI_INTEGRATION_ASSIGN_USER_EMAIL:publisher-builtin@integration.local}
+    assign-builtin-user-name: ${AI_INTEGRATION_ASSIGN_USER_NAME:Publisher (auto)}
+    # Опционально: UUID клиента, если не хотите искать по api-key
+    client-id: ${AI_INTEGRATION_CLIENT_ID:}
   cors:
-    # Любой порт на localhost (Vite часто занимает 5174, если 5173 занят)
+    # Порт: в Spring 5.3+ указывать как :[*], иначе http://localhost:* НЕ матчит http://localhost:5176 → 403 на CORS.
+    # См. Cors#setAllowedOriginPatterns (примеры с domain:[*]).
+    # LAN: задайте publisher.cors.allowed-origins с точным origin либо откройте фронт с localhost.
     allowed-origin-patterns:
-      - "http://localhost:*"
-      - "http://127.0.0.1:*"
+      - "http://localhost:[*]"
+      - "https://localhost:[*]"
+      - "http://127.0.0.1:[*]"
+      - "https://127.0.0.1:[*]"
+      - "http://127.0.0.1:5176"
     # Опционально: точные origin для продакшена (если заданы — используются вместо паттернов выше)
     allowed-origins: []
   storage:

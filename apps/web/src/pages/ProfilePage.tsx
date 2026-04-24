@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { updateProfile } from '../api/account'
 import { ApiError, apiFetch } from '../api/client'
 import type { MeResponse, UpdateProfilePayload } from '../api/types'
+import { AiAdminSection } from '../components/AiAdminSection'
 import { applyTheme, type Theme } from '../lib/theme'
 
 function isTheme(v: string | null | undefined): v is Theme {
@@ -176,6 +177,8 @@ export function ProfilePage() {
           {mutation.isPending ? 'Сохранение…' : 'Сохранить'}
         </button>
       </form>
+
+      {profile.user.isAdmin ? <AiAdminSection /> : null}
     </div>
   )
 }

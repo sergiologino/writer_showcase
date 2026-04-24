@@ -23,13 +23,18 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 @Service
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     private final UserRepository userRepository;
     private final WorkspaceRepository workspaceRepository;
@@ -96,9 +101,21 @@ public class AuthService {
     public TokenResponse login(LoginRequest request) {
         String email = request.email().trim().toLowerCase();
         var token = new UsernamePasswordAuthenticationToken(email, request.password());
-        authenticationManager.authenticate(token);
+        log.info("AuthService.login: start emailLen={} passwordPresent={}", email.length(), request.password() != null && !request.password().isEmpty());
+        try {
+            authenticationManager.authenticate(token);
+        } catch (AuthenticationException e) {
+            // Не пробрасывать AuthenticationException из @RestController: в части сценариев это даёт 403.
+            // Явно 401 + тело из ApiExceptionHandler.
+            log.warn("AuthService.login: Spring Security authentication failed: {} — {}", e.getClass().getSimpleName(), e.getMessage());
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+        }
         UserEntity user = userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
+                .orElseThrow(() -> {
+                    log.warn("AuthService.login: user missing after successful authenticate (emailLen={})", email.length());
+                    return new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+                });
+        log.info("AuthService.login: success userId={}", user.getId());
         refreshTokenRepository.revokeAllForUser(user.getId(), Instant.now());
         return issueTokens(user);
     }

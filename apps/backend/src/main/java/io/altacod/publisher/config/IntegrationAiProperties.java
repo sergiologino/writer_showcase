@@ -26,9 +26,34 @@ public class IntegrationAiProperties {
      */
     private String processPath = "/api/ai/process";
 
+    private String availableNetworksPath = "/api/ai/networks/available";
+
     private int connectTimeoutMs = 5_000;
 
     private int readTimeoutMs = 120_000;
+
+    /**
+     * При старте: войти в noteapp-ai-integration как админ и привязать текущий API-клиент
+     * к пользователю {@link #assignBuiltinUserEmail} (создать user_accounts при необходимости).
+     * Снимает ошибки вида «клиент не привязан к пользователю» в оркестраторе.
+     */
+    private boolean ensureClientUserLink = true;
+
+    private String adminUsername = "admin";
+
+    /**
+     * Пароль админа в integration (MVP: admin). Пусто — автопривязка пропускается.
+     */
+    private String adminPassword = "";
+
+    private String assignBuiltinUserEmail = "publisher-builtin@integration.local";
+
+    private String assignBuiltinUserName = "Publisher (auto)";
+
+    /**
+     * Необязательно: UUID клиента в integration; если задан, поиск по api-key в списке не выполняется.
+     */
+    private String clientId;
 
     public String getBaseUrl() {
         return baseUrl;
@@ -62,6 +87,14 @@ public class IntegrationAiProperties {
         this.processPath = processPath;
     }
 
+    public String getAvailableNetworksPath() {
+        return availableNetworksPath;
+    }
+
+    public void setAvailableNetworksPath(String availableNetworksPath) {
+        this.availableNetworksPath = availableNetworksPath;
+    }
+
     public int getConnectTimeoutMs() {
         return connectTimeoutMs;
     }
@@ -76,6 +109,54 @@ public class IntegrationAiProperties {
 
     public void setReadTimeoutMs(int readTimeoutMs) {
         this.readTimeoutMs = readTimeoutMs;
+    }
+
+    public boolean isEnsureClientUserLink() {
+        return ensureClientUserLink;
+    }
+
+    public void setEnsureClientUserLink(boolean ensureClientUserLink) {
+        this.ensureClientUserLink = ensureClientUserLink;
+    }
+
+    public String getAdminUsername() {
+        return adminUsername;
+    }
+
+    public void setAdminUsername(String adminUsername) {
+        this.adminUsername = adminUsername;
+    }
+
+    public String getAdminPassword() {
+        return adminPassword;
+    }
+
+    public void setAdminPassword(String adminPassword) {
+        this.adminPassword = adminPassword;
+    }
+
+    public String getAssignBuiltinUserEmail() {
+        return assignBuiltinUserEmail;
+    }
+
+    public void setAssignBuiltinUserEmail(String assignBuiltinUserEmail) {
+        this.assignBuiltinUserEmail = assignBuiltinUserEmail;
+    }
+
+    public String getAssignBuiltinUserName() {
+        return assignBuiltinUserName;
+    }
+
+    public void setAssignBuiltinUserName(String assignBuiltinUserName) {
+        this.assignBuiltinUserName = assignBuiltinUserName;
+    }
+
+    public String getClientId() {
+        return clientId;
+    }
+
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
     }
 
     /**

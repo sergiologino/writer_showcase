@@ -9,9 +9,33 @@ import { createCategory, fetchCategories } from '../api/categories'
 import { uploadMedia } from '../api/media'
 import { createPost, fetchPost, updatePost, type PostPayload } from '../api/posts'
 import type { ChannelType, PostStatus, PostVisibility } from '../api/types'
+import { AiStudioModal } from '../components/AiStudioModal'
 import { AuthenticatedMediaThumb } from '../components/AuthenticatedMediaThumb'
 import { channelFullName, deliveryStatusLabel, deliveryStatusTone } from '../lib/channelPublish'
 import { articleSourceToHtml } from '../lib/articleHtml'
+
+function instantToDatetimeLocalValue(iso: string | null | undefined): string {
+  if (!iso) {
+    return ''
+  }
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) {
+    return ''
+  }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function datetimeLocalToIso(local: string): string | null {
+  if (!local.trim()) {
+    return null
+  }
+  const t = new Date(local).getTime()
+  if (Number.isNaN(t)) {
+    return null
+  }
+  return new Date(t).toISOString()
+}
 
 const schema = z.object({
   title: z.string().min(1, 'Заголовок обязателен').max(500),
@@ -68,6 +92,9 @@ export function PostEditorPage() {
   const [channelOn, setChannelOn] = useState<Record<string, boolean>>({})
   const [htmlAdvancedOpen, setHtmlAdvancedOpen] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [scheduledLocal, setScheduledLocal] = useState('')
+  const [studioOpen, setStudioOpen] = useState(false)
+  const [aiGeneratedOverride, setAiGeneratedOverride] = useState<boolean | null>(null)
 
   const enabledWorkspaceChannels = useMemo(
     () => (channelsQ.data ?? []).filter((c) => c.enabled),
@@ -100,6 +127,8 @@ export function PostEditorPage() {
       const gen = articleSourceToHtml(ed.bodySource ?? '').trim()
       const stor = (ed.bodyHtml ?? '').trim()
       setHtmlAdvancedOpen(stor.length > 0 && stor !== gen)
+      setScheduledLocal(instantToDatetimeLocalValue(ed.scheduledPublishAt))
+      setAiGeneratedOverride(null)
     }
   }, [existing.data, form])
 
@@ -165,6 +194,7 @@ export function PostEditorPage() {
       const bodyHtml =
         htmlAdvancedOpen && manualHtml.length > 0 ? (values.bodyHtml ?? '') : autoHtml
 
+      const scheduledIso = datetimeLocalToIso(scheduledLocal)
       const payload: PostPayload = {
         title: values.title,
         slug: values.slug?.trim() ?? '',
@@ -175,10 +205,16 @@ export function PostEditorPage() {
         status: values.status as PostStatus,
         categoryId: values.categoryId ?? null,
         tagIds: [],
-        aiGenerated: false,
+        aiGenerated:
+          aiGeneratedOverride !== null
+            ? aiGeneratedOverride
+            : isNew
+              ? false
+              : (existing.data?.aiGenerated ?? false),
         mediaAssetIds: orderedMedia,
         socialPublishEnabled,
         publishChannels,
+        scheduledPublishAt: scheduledIso,
       }
       if (isNew) {
         return createPost(payload)
@@ -186,6 +222,7 @@ export function PostEditorPage() {
       return updatePost(Number(id), payload)
     },
     onSuccess: async (post) => {
+      setAiGeneratedOverride(null)
       await qc.invalidateQueries({ queryKey: ['posts'] })
       await qc.refetchQueries({ queryKey: ['posts'] })
       await qc.invalidateQueries({ queryKey: ['post', String(post.id)] })
@@ -199,13 +236,33 @@ export function PostEditorPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold">{isNew ? 'Новый материал' : 'Редактирование'}</h1>
-        <Link
-          to="/app/feed"
-          className="text-sm text-[var(--muted)] hover:text-[var(--text)] hover:underline"
-        >
-          ← к ленте
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm hover:border-[var(--accent)]"
+            onClick={() => setStudioOpen(true)}
+          >
+            AI-студия
+          </button>
+          <Link
+            to="/app/feed"
+            className="text-sm text-[var(--muted)] hover:text-[var(--text)] hover:underline"
+          >
+            ← к ленте
+          </Link>
+        </div>
       </div>
+
+      <AiStudioModal
+        open={studioOpen}
+        onClose={() => setStudioOpen(false)}
+        originalBody={bodySourceWatch ?? ''}
+        onApplyToArticle={(md) => {
+          setValue('bodySource', md, { shouldDirty: true })
+          setAiGeneratedOverride(true)
+          setStudioOpen(false)
+        }}
+      />
 
       {!isNew && existing.isLoading ? (
         <p className="text-sm text-[var(--muted)]">Загрузка…</p>
@@ -216,6 +273,16 @@ export function PostEditorPage() {
         >
           {mutation.isError ? (
             <p className="text-sm text-red-600">Не удалось сохранить. Проверьте данные.</p>
+          ) : null}
+          {!isNew && existing.data?.channelSyndicationBlocked ? (
+            <div
+              className="rounded-lg border border-amber-500/50 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-100"
+              role="status"
+            >
+              Плановая публикация в каналах пропущена (синхронизация с сервера наступила после времени). Автопост
+              не выполнялся. Внесите правки и сохраните снова — тогда публикация в соцсети сможет пойти в обычном
+              порядке (если включены каналы и статус «Опубликован» + публичная видимость).
+            </div>
           ) : null}
           <label className="block text-sm font-medium">
             Заголовок
@@ -302,6 +369,20 @@ export function PostEditorPage() {
             />
             <span className="mt-1 block text-xs text-[var(--muted)]">
               Заголовки, списки, ссылки, код — в формате Markdown. Для сайта HTML собирается автоматически.
+            </span>
+          </label>
+
+          <label className="block text-sm font-medium">
+            Плановая публикация (локальное время)
+            <input
+              type="datetime-local"
+              className="mt-1 w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm"
+              value={scheduledLocal}
+              onChange={(e) => setScheduledLocal(e.target.value)}
+            />
+            <span className="mt-1 block text-xs text-[var(--muted)]">
+              Необязательно. Для офлайн-редакторов: если к моменту синхронизации время уже прошло, кросс-пост в каналы
+              не пойдёт по расписанию — снимите блок правкой и сохраните (см. предупреждение выше).
             </span>
           </label>
 

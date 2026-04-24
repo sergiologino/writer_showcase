@@ -4,6 +4,7 @@ import io.altacod.publisher.config.PublisherProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -21,6 +22,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.List;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     @Bean
@@ -69,11 +71,19 @@ public class SecurityConfig {
         } else if (!origins.isEmpty()) {
             config.setAllowedOrigins(origins);
         } else {
-            config.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
+            config.setAllowedOriginPatterns(List.of(
+                    "http://localhost:[*]",
+                    "https://localhost:[*]",
+                    "http://127.0.0.1:[*]",
+                    "https://127.0.0.1:[*]"));
         }
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(true);
+        // Сессия на cookie не завязана; JWT в Authorization — CORS credentials не обязателен.
+        config.setAllowCredentials(false);
+        // Chrome: запросы к «более приватному» host (другой порт на loopback) без заголовка → 403 на CORS-этапе
+        // (см. DefaultCorsProcessor / Private Network Access).
+        config.setAllowPrivateNetwork(true);
         var source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;

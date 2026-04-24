@@ -95,11 +95,12 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, isRetry 
   const url = resolveApiUrl(path)
   const headers = new Headers(init.headers)
   const token = getToken()
-  if (token) {
+  if (token && !path.startsWith('/api/auth/')) {
     headers.set('Authorization', `Bearer ${token}`)
   }
   const ws = getWorkspaceId()
-  if (ws && !path.startsWith('/api/auth/') && !path.startsWith('/api/public/')) {
+  const pathNoQuery = path.split('?')[0] ?? path
+  if (ws && !path.startsWith('/api/auth/') && !path.startsWith('/api/public/') && pathNoQuery !== '/api/me') {
     headers.set('X-Workspace-Id', ws)
   }
   if (init.body && typeof init.body === 'string' && !headers.has('Content-Type')) {

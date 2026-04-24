@@ -97,6 +97,7 @@ class AuthAndPostIntegrationTest {
                 false,
                 null,
                 null,
+                null,
                 null
         );
 
@@ -158,6 +159,7 @@ class AuthAndPostIntegrationTest {
                 null,
                 List.of(),
                 false,
+                null,
                 null,
                 null,
                 null

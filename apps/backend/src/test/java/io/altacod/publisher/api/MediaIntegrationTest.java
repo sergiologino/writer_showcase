@@ -94,6 +94,7 @@ class MediaIntegrationTest {
                 false,
                 List.of(mediaId),
                 null,
+                null,
                 null
         );
 

@@ -30,6 +30,32 @@ public class HttpIntegrationAiClient implements IntegrationAiClient {
     }
 
     @Override
+    public String fetchAvailableNetworksJson() {
+        if (!props.isConfigured()) {
+            return "[]";
+        }
+        SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();
+        rf.setConnectTimeout(Duration.ofMillis(props.getConnectTimeoutMs()));
+        rf.setReadTimeout(Duration.ofMillis(props.getReadTimeoutMs()));
+        RestClient client = RestClient.builder()
+                .requestFactory(rf)
+                .baseUrl(props.getBaseUrl().replaceAll("/$", ""))
+                .defaultHeader(props.getApiKeyHeader(), props.getApiKey())
+                .build();
+        String path = props.getAvailableNetworksPath().startsWith("/")
+                ? props.getAvailableNetworksPath()
+                : "/" + props.getAvailableNetworksPath();
+        try {
+            return client.get()
+                    .uri(path)
+                    .retrieve()
+                    .body(String.class);
+        } catch (RestClientException e) {
+            return "[]";
+        }
+    }
+
+    @Override
     public AiInvokeResponse send(NoteappAiProcessRequest request) {
         if (!props.isConfigured()) {
             return new AiInvokeResponse(false, null, "NOT_CONFIGURED");

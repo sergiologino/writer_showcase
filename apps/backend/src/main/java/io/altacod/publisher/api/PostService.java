@@ -128,13 +128,19 @@ public class PostService {
         if (publishedAt != null) {
             post.setPublishedAt(publishedAt);
         }
+        if (payload.scheduledPublishAt() != null) {
+            post.setScheduledPublishAt(payload.scheduledPublishAt());
+        }
+        applyScheduleStateOnCreate(post, payload, now);
         applyCategory(post, workspaceId, payload.categoryId());
         applyTags(post, workspaceId, payload.tagIds());
 
         postRepository.save(post);
         applyPostMedia(post, workspaceId, payload.mediaAssetIds());
         applySocialAndTargets(post, payload, true);
-        if (payload.status() == PostStatus.PUBLISHED && payload.visibility() == PostVisibility.PUBLIC) {
+        if (payload.status() == PostStatus.PUBLISHED
+                && payload.visibility() == PostVisibility.PUBLIC
+                && !post.isChannelSyndicationBlocked()) {
             eventPublisher.publishEvent(new PostPublishedEvent(post.getId()));
         }
         return toResponse(post);
@@ -172,6 +178,10 @@ public class PostService {
         PostEntity post = postRepository.findByIdAndWorkspaceId(id, workspaceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found"));
         PostStatus previous = post.getStatus();
+        String prevTitle = post.getTitle();
+        String prevExcerpt = post.getExcerpt();
+        String prevSource = post.getBodySource();
+        String prevHtml = post.getBodyHtml();
         String slug = resolveSlug(workspaceId, payload.title(), payload.slug(), id);
         Instant now = Instant.now();
         Instant publishedAt = post.getPublishedAt();
@@ -194,6 +204,18 @@ public class PostService {
                 now,
                 publishedAt
         );
+        if (payload.scheduledPublishAt() != null) {
+            post.setScheduledPublishAt(payload.scheduledPublishAt());
+        }
+        applyScheduleStateOnUpdate(
+                post,
+                payload,
+                now,
+                prevTitle,
+                prevExcerpt,
+                prevSource,
+                prevHtml
+        );
         post.replaceTags(Set.of());
         applyCategory(post, workspaceId, payload.categoryId());
         applyTags(post, workspaceId, payload.tagIds());
@@ -202,7 +224,7 @@ public class PostService {
 
         boolean nowPublishedPublic =
                 payload.status() == PostStatus.PUBLISHED && payload.visibility() == PostVisibility.PUBLIC;
-        if (nowPublishedPublic) {
+        if (nowPublishedPublic && !post.isChannelSyndicationBlocked()) {
             /*
              * Ставим в очередь диспетчера каналов при любом сохранении публичного опубликованного поста:
              * — первый переход в PUBLISHED+PUBLIC;
@@ -214,6 +236,71 @@ public class PostService {
         }
 
         return toResponse(post);
+    }
+
+    private void applyScheduleStateOnCreate(PostEntity post, PostPayload payload, Instant now) {
+        Instant sched = payload.scheduledPublishAt();
+        if (sched == null) {
+            post.setScheduleMissed(false);
+            post.setLateScheduleReleased(true);
+            return;
+        }
+        if (sched.isBefore(now)) {
+            post.setScheduleMissed(true);
+            post.setLateScheduleReleased(payload.status() == PostStatus.PUBLISHED);
+        } else {
+            post.setScheduleMissed(false);
+            post.setLateScheduleReleased(true);
+        }
+    }
+
+    private void applyScheduleStateOnUpdate(
+            PostEntity post,
+            PostPayload payload,
+            Instant now,
+            String prevTitle,
+            String prevExcerpt,
+            String prevSource,
+            String prevHtml
+    ) {
+        if (payload.scheduledPublishAt() != null) {
+            post.setScheduledPublishAt(payload.scheduledPublishAt());
+        }
+        Instant sched = post.getScheduledPublishAt();
+        if (sched != null && !sched.isBefore(now)) {
+            post.setScheduleMissed(false);
+            post.setLateScheduleReleased(true);
+            return;
+        }
+        if (sched != null && sched.isBefore(now) && !post.isScheduleMissed()) {
+            post.setScheduleMissed(true);
+            post.setLateScheduleReleased(false);
+        }
+        if (post.isScheduleMissed() && !post.isLateScheduleReleased()) {
+            if (contentChanged(prevTitle, prevExcerpt, prevSource, prevHtml, payload)) {
+                post.setLateScheduleReleased(true);
+            }
+        }
+    }
+
+    private static boolean contentChanged(
+            String prevTitle,
+            String prevExcerpt,
+            String prevSource,
+            String prevHtml,
+            PostPayload payload
+    ) {
+        return !strEq(prevTitle, payload.title().trim())
+                || !strEq(prevExcerpt, payload.excerpt())
+                || !strEq(prevSource, payload.bodySource())
+                || !strEq(prevHtml, payload.bodyHtml());
+    }
+
+    private static boolean strEq(String a, String b) {
+        if (a == null) {
+            return b == null || b.isEmpty();
+        }
+        return a.equals(b == null ? "" : b);
     }
 
     @Transactional
@@ -371,6 +458,10 @@ public class PostService {
                 post.getCreatedAt(),
                 post.getUpdatedAt(),
                 post.getPublishedAt(),
+                post.getScheduledPublishAt(),
+                post.isScheduleMissed(),
+                post.isLateScheduleReleased(),
+                post.isChannelSyndicationBlocked(),
                 post.isSocialPublishEnabled(),
                 publishChannelTypes,
                 outbound

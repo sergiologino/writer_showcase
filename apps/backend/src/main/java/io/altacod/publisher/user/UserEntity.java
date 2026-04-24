@@ -30,6 +30,9 @@ public class UserEntity {
     private String timezone;
     private String theme;
 
+    @Column(name = "is_admin", nullable = false)
+    private boolean admin;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -54,6 +57,7 @@ public class UserEntity {
         this.locale = locale;
         this.timezone = timezone;
         this.theme = theme;
+        this.admin = false;
         this.createdAt = now;
         this.updatedAt = now;
     }
@@ -112,5 +116,13 @@ public class UserEntity {
 
     public void touch(Instant now) {
         this.updatedAt = now;
+    }
+
+    public boolean isAdmin() {
+        return admin;
+    }
+
+    public void setAdmin(boolean admin) {
+        this.admin = admin;
     }
 }

@@ -5,6 +5,7 @@ import io.altacod.publisher.api.dto.UpdateProfilePayload;
 import io.altacod.publisher.api.dto.UserSummaryDto;
 import io.altacod.publisher.api.dto.WorkspaceSummaryDto;
 import io.altacod.publisher.security.SecurityUserPrincipal;
+import io.altacod.publisher.config.PublisherSecurityProperties;
 import io.altacod.publisher.user.UserEntity;
 import io.altacod.publisher.user.UserRepository;
 import io.altacod.publisher.workspace.MembershipRepository;
@@ -22,10 +23,16 @@ public class AccountService {
 
     private final UserRepository userRepository;
     private final MembershipRepository membershipRepository;
+    private final PublisherSecurityProperties securityProperties;
 
-    public AccountService(UserRepository userRepository, MembershipRepository membershipRepository) {
+    public AccountService(
+            UserRepository userRepository,
+            MembershipRepository membershipRepository,
+            PublisherSecurityProperties securityProperties
+    ) {
         this.userRepository = userRepository;
         this.membershipRepository = membershipRepository;
+        this.securityProperties = securityProperties;
     }
 
     @Transactional(readOnly = true)
@@ -78,14 +85,16 @@ public class AccountService {
         return t.isEmpty() ? null : t;
     }
 
-    private static UserSummaryDto toUserSummary(UserEntity user) {
+    private UserSummaryDto toUserSummary(UserEntity user) {
+        boolean admin = user.isAdmin() || securityProperties.isListedAdmin(user.getEmail());
         return new UserSummaryDto(
                 user.getId(),
                 user.getEmail(),
                 user.getDisplayName(),
                 user.getLocale(),
                 user.getTimezone(),
-                user.getTheme()
+                user.getTheme(),
+                admin
         );
     }
 }

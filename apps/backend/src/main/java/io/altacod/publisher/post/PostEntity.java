@@ -81,6 +81,15 @@ public class PostEntity {
     @Column(name = "published_at")
     private Instant publishedAt;
 
+    @Column(name = "scheduled_publish_at")
+    private Instant scheduledPublishAt;
+
+    @Column(name = "schedule_missed", nullable = false)
+    private boolean scheduleMissed;
+
+    @Column(name = "late_schedule_released", nullable = false)
+    private boolean lateScheduleReleased = true;
+
     @Column(name = "social_publish_enabled", nullable = false)
     private boolean socialPublishEnabled = true;
 
@@ -188,6 +197,37 @@ public class PostEntity {
 
     public void setPublishedAt(Instant publishedAt) {
         this.publishedAt = publishedAt;
+    }
+
+    public Instant getScheduledPublishAt() {
+        return scheduledPublishAt;
+    }
+
+    public void setScheduledPublishAt(Instant scheduledPublishAt) {
+        this.scheduledPublishAt = scheduledPublishAt;
+    }
+
+    public boolean isScheduleMissed() {
+        return scheduleMissed;
+    }
+
+    public void setScheduleMissed(boolean scheduleMissed) {
+        this.scheduleMissed = scheduleMissed;
+    }
+
+    public boolean isLateScheduleReleased() {
+        return lateScheduleReleased;
+    }
+
+    public void setLateScheduleReleased(boolean lateScheduleReleased) {
+        this.lateScheduleReleased = lateScheduleReleased;
+    }
+
+    /**
+     * Синхронизация наступила после плановой публикации; в каналы не уходит, пока автор не внесёт правки.
+     */
+    public boolean isChannelSyndicationBlocked() {
+        return scheduleMissed && !lateScheduleReleased;
     }
 
     public boolean isSocialPublishEnabled() {

@@ -51,6 +51,8 @@ publisher:
     process-path: ${AI_INTEGRATION_PROCESS_PATH:${INTEGRATION_AI_PROCESS_PATH:/api/ai/process}}
     # GET-список сетей (админ UI / справка); тот же X-API-Key, что и для process
     available-networks-path: ${AI_INTEGRATION_AVAILABLE_NETWORKS_PATH:${INTEGRATION_AI_AVAILABLE_NETWORKS_PATH:/api/ai/networks/available}}
+    # Telegram (текст), Facebook, X — через тот же сервис, см. /api/social/posts
+    social-posts-path: ${AI_INTEGRATION_SOCIAL_POSTS_PATH:${INTEGRATION_AI_SOCIAL_POSTS_PATH:/api/social/posts}}
     connect-timeout-ms: ${AI_INTEGRATION_CONNECT_TIMEOUT_MS:${INTEGRATION_AI_CONNECT_TIMEOUT_MS:5000}}
     read-timeout-ms: ${AI_INTEGRATION_READ_TIMEOUT_MS:${INTEGRATION_AI_READ_TIMEOUT_MS:120000}}
     # При старте: admin-login в noteapp-ai-integration + POST /api/admin/clients/{id}/assign-user

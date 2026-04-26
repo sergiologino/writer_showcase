@@ -28,6 +28,11 @@ public class IntegrationAiProperties {
 
     private String availableNetworksPath = "/api/ai/networks/available";
 
+    /**
+     * Публикация в соцсети (Telegram, Facebook, X) через тот же сервис и тот же {@code X-API-Key}.
+     */
+    private String socialPostsPath = "/api/social/posts";
+
     private int connectTimeoutMs = 5_000;
 
     private int readTimeoutMs = 120_000;
@@ -93,6 +98,14 @@ public class IntegrationAiProperties {
 
     public void setAvailableNetworksPath(String availableNetworksPath) {
         this.availableNetworksPath = availableNetworksPath;
+    }
+
+    public String getSocialPostsPath() {
+        return socialPostsPath;
+    }
+
+    public void setSocialPostsPath(String socialPostsPath) {
+        this.socialPostsPath = socialPostsPath;
     }
 
     public int getConnectTimeoutMs() {

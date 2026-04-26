@@ -6,6 +6,8 @@ export function channelShortName(t: ChannelType): string {
     VK: 'ВК',
     ODNOKLASSNIKI: 'ОК',
     MAX: 'MAX',
+    FACEBOOK: 'FB',
+    X: 'X',
   }
   return m[t] ?? t
 }
@@ -16,6 +18,8 @@ export function channelFullName(t: ChannelType): string {
     VK: 'ВКонтакте',
     ODNOKLASSNIKI: 'Одноклассники',
     MAX: 'МАКС',
+    FACEBOOK: 'Facebook',
+    X: 'X (Twitter)',
   }
   return m[t] ?? t
 }

@@ -66,7 +66,7 @@ export interface PostMediaAttachment {
 }
 
 /** Каналы кросс-постинга (совпадает с бэкендом `ChannelType`). */
-export type ChannelType = 'TELEGRAM' | 'VK' | 'ODNOKLASSNIKI' | 'MAX'
+export type ChannelType = 'TELEGRAM' | 'VK' | 'ODNOKLASSNIKI' | 'MAX' | 'FACEBOOK' | 'X'
 
 /** Совпадает с `ChannelDeliveryStatus` на бэкенде. */
 export type ChannelDeliveryStatus = 'PENDING' | 'SENT' | 'FAILED' | 'REJECTED'

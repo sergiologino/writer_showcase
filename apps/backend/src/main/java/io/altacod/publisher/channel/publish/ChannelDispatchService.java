@@ -16,6 +16,7 @@ import io.altacod.publisher.api.MediaService;
 import io.altacod.publisher.config.OutboundRestClientConfig;
 import io.altacod.publisher.config.PublisherChannelDeliveryProperties;
 import io.altacod.publisher.config.PublisherPublicSiteProperties;
+import io.altacod.publisher.integration.HttpIntegrationSocialClient;
 import io.altacod.publisher.media.MediaAssetEntity;
 import io.altacod.publisher.media.PostMediaEntity;
 import io.altacod.publisher.media.PostMediaRepository;
@@ -26,7 +27,6 @@ import io.altacod.publisher.post.PostVisibility;
 import io.altacod.publisher.text.HtmlPlainText;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -83,6 +83,7 @@ public class ChannelDispatchService {
     private final RestClient http;
     private final PostMediaRepository postMediaRepository;
     private final MediaService mediaService;
+    private final HttpIntegrationSocialClient integrationSocialClient;
 
     public ChannelDispatchService(
             PostRepository postRepository,
@@ -94,6 +95,7 @@ public class ChannelDispatchService {
             ObjectMapper objectMapper,
             PostMediaRepository postMediaRepository,
             MediaService mediaService,
+            HttpIntegrationSocialClient integrationSocialClient,
             @Qualifier(OutboundRestClientConfig.OUTBOUND_REST_CLIENT) RestClient outboundRestClient
     ) {
         this.postRepository = postRepository;
@@ -105,6 +107,7 @@ public class ChannelDispatchService {
         this.objectMapper = objectMapper;
         this.postMediaRepository = postMediaRepository;
         this.mediaService = mediaService;
+        this.integrationSocialClient = integrationSocialClient;
         this.http = outboundRestClient;
     }
 
@@ -134,6 +137,8 @@ public class ChannelDispatchService {
                 }
                 switch (ch.getChannelType()) {
                     case TELEGRAM -> sendTelegram(post, ch, now);
+                    case FACEBOOK -> sendFacebook(post, ch, now);
+                    case X -> sendXPost(post, ch, now);
                     case VK -> sendVk(post, ch, now);
                     case ODNOKLASSNIKI -> sendOdnoklassniki(post, ch, now);
                     case MAX -> sendMax(post, ch, now);
@@ -190,6 +195,8 @@ public class ChannelDispatchService {
         try {
             switch (type) {
                 case TELEGRAM -> sendTelegram(post, ch, now);
+                case FACEBOOK -> sendFacebook(post, ch, now);
+                case X -> sendXPost(post, ch, now);
                 case VK -> sendVk(post, ch, now);
                 case ODNOKLASSNIKI -> sendOdnoklassniki(post, ch, now);
                 case MAX -> sendMax(post, ch, now);
@@ -249,28 +256,6 @@ public class ChannelDispatchService {
         return null;
     }
 
-    private static String describeTelegramNetworkFailure(RestClientException e) {
-        for (Throwable t = e; t != null; t = t.getCause()) {
-            if (t instanceof ConnectException || t instanceof ClosedChannelException) {
-                return "не удалось установить соединение с api.telegram.org:443. "
-                        + "С машины, где запущен backend, нужен исходящий HTTPS; проверьте фаервол, антивирус, "
-                        + "корпоративный прокси (для Java: -Dhttps.proxyHost / -Dhttps.proxyPort) или доступность Telegram";
-            }
-            if (t instanceof UnknownHostException) {
-                return "не удаётся разрешить имя api.telegram.org (DNS)";
-            }
-            if (t instanceof HttpTimeoutException) {
-                return "таймаут при обращении к api.telegram.org";
-            }
-        }
-        String m = e.getMessage();
-        if (m == null || m.isBlank() || "null".equalsIgnoreCase(m.trim())) {
-            return e.getClass().getSimpleName()
-                    + " (сеть или api.telegram.org недоступен с сервера приложения)";
-        }
-        return ChannelErrorSanitizer.stripSecrets(m);
-    }
-
     private void sendTelegram(PostEntity post, WorkspaceChannelEntity ch, Instant now) throws Exception {
         Optional<ChannelOutboundLogEntity> existing =
                 outboundLogRepository.findByPost_IdAndChannelType(post.getId(), ChannelType.TELEGRAM);
@@ -285,35 +270,86 @@ public class ChannelDispatchService {
             return;
         }
         List<TelegramImage> images = loadTelegramImages(post);
-        String caption = buildTelegramCaption(post);
-        if (images.isEmpty()) {
-            String text = buildChannelMessage(post);
-            ObjectNode body = objectMapper.createObjectNode();
-            body.put("chat_id", chatId);
-            body.put("text", text);
-            body.put("disable_web_page_preview", true);
-
-            String sendUrl = "https://api.telegram.org/bot" + token.trim() + "/sendMessage";
-            String raw;
-            try {
-                raw = http.post()
-                        .uri(sendUrl)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(objectMapper.writeValueAsString(body))
-                        .retrieve()
-                        .body(String.class);
-            } catch (RestClientException e) {
-                String detail = describeTelegramNetworkFailure(e);
-                throw new IllegalStateException("Telegram HTTP: " + detail, e);
-            }
-            JsonNode root = objectMapper.readTree(raw == null ? "{}" : raw);
-            if (!root.path("ok").asBoolean(false)) {
-                throw new IllegalStateException("Telegram API: " + truncateError(raw));
-            }
-        } else {
-            sendTelegramImagesWithCaption(token, chatId, images, caption);
+        if (!integrationSocialClient.isConfigured()) {
+            recordFailureTerminal(
+                    post, ChannelType.TELEGRAM, "Noteapp integration not configured: set AI_INTEGRATION_BASE_URL and "
+                            + "AI_INTEGRATION_API_KEY for /api/social/posts",
+                    now
+            );
+            return;
         }
-        upsertSuccess(post, ChannelType.TELEGRAM, now, null, null);
+
+        String uid = "ws-" + post.getWorkspace().getId() + "-post-" + post.getId();
+        String text = images.isEmpty() ? buildChannelMessage(post) : buildTelegramCaption(post);
+        String ext = integrationSocialClient.publishTelegram(
+                uid,
+                token.trim(),
+                chatId.trim(),
+                text,
+                true,
+                telegramAttachments(images)
+        );
+        upsertSuccess(post, ChannelType.TELEGRAM, now, ext, null);
+    }
+
+    /**
+     * Facebook: публикация на страницу через noteapp-ai-integration (Graph API на стороне интеграции).
+     */
+    private void sendFacebook(PostEntity post, WorkspaceChannelEntity ch, Instant now) throws Exception {
+        Optional<ChannelOutboundLogEntity> existing =
+                outboundLogRepository.findByPost_IdAndChannelType(post.getId(), ChannelType.FACEBOOK);
+        if (shouldSkipDelivery(existing, now)) {
+            return;
+        }
+        if (!integrationSocialClient.isConfigured()) {
+            recordFailureTerminal(
+                    post, ChannelType.FACEBOOK, "Noteapp integration not configured: set AI_INTEGRATION_BASE_URL and "
+                            + "AI_INTEGRATION_API_KEY for /api/social/posts",
+                    now
+            );
+            return;
+        }
+        JsonNode cfg = objectMapper.readTree(ch.getConfigJson());
+        String accessToken = text(cfg, "accessToken");
+        String pageId = text(cfg, "pageId");
+        if (accessToken == null || accessToken.isBlank() || pageId == null || pageId.isBlank()) {
+            recordFailureTerminal(post, ChannelType.FACEBOOK, "Missing accessToken or pageId in channel config", now);
+            return;
+        }
+        String uid = "ws-" + post.getWorkspace().getId() + "-post-" + post.getId();
+        String message = buildChannelMessage(post);
+        String ext = integrationSocialClient.publishFacebook(
+                uid, accessToken.trim(), pageId.trim(), message, buildPublicUrl(post)
+        );
+        upsertSuccess(post, ChannelType.FACEBOOK, now, ext, null);
+    }
+
+    /**
+     * X (Twitter): публикация через noteapp-ai-integration.
+     */
+    private void sendXPost(PostEntity post, WorkspaceChannelEntity ch, Instant now) throws Exception {
+        Optional<ChannelOutboundLogEntity> existing =
+                outboundLogRepository.findByPost_IdAndChannelType(post.getId(), ChannelType.X);
+        if (shouldSkipDelivery(existing, now)) {
+            return;
+        }
+        if (!integrationSocialClient.isConfigured()) {
+            recordFailureTerminal(
+                    post, ChannelType.X, "Noteapp integration not configured: set AI_INTEGRATION_BASE_URL and "
+                            + "AI_INTEGRATION_API_KEY for /api/social/posts",
+                    now
+            );
+            return;
+        }
+        JsonNode cfg = objectMapper.readTree(ch.getConfigJson());
+        String bearer = text(cfg, "bearerToken");
+        if (bearer == null || bearer.isBlank()) {
+            recordFailureTerminal(post, ChannelType.X, "Missing bearerToken in channel config", now);
+            return;
+        }
+        String uid = "ws-" + post.getWorkspace().getId() + "-post-" + post.getId();
+        String ext = integrationSocialClient.publishX(uid, bearer.trim(), buildChannelMessage(post));
+        upsertSuccess(post, ChannelType.X, now, ext, null);
     }
 
     /**
@@ -355,33 +391,21 @@ public class ChannelDispatchService {
         return full;
     }
 
-    /**
-     * Одно сообщение в канале: альбом (до 10 фото) с подписью на первом снимке; при &gt;10 — следующие партии без подписи.
-     */
-    private void sendTelegramImagesWithCaption(
-            String token,
-            String chatId,
-            List<TelegramImage> images,
-            String caption
-    ) throws Exception {
-        int i = 0;
-        boolean firstBatch = true;
-        while (i < images.size()) {
-            int remaining = images.size() - i;
-            String cap = firstBatch ? caption : null;
-            firstBatch = false;
-            if (remaining == 1) {
-                sendTelegramPhoto(token, chatId, images.get(i), cap);
-                i++;
-            } else {
-                int chunk = Math.min(10, remaining);
-                sendTelegramMediaGroup(token, chatId, images.subList(i, i + chunk), cap);
-                i += chunk;
-            }
-        }
+    private record TelegramImage(byte[] data, String mimeType) {
     }
 
-    private record TelegramImage(byte[] data, String mimeType) {
+    private List<HttpIntegrationSocialClient.BinaryAttachment> telegramAttachments(List<TelegramImage> images) {
+        List<HttpIntegrationSocialClient.BinaryAttachment> attachments = new ArrayList<>();
+        for (TelegramImage image : images) {
+            attachments.add(new HttpIntegrationSocialClient.BinaryAttachment(
+                    telegramAttachmentType(image.mimeType()),
+                    telegramAttachmentFilename(image.mimeType()),
+                    image.mimeType(),
+                    image.data(),
+                    null
+            ));
+        }
+        return attachments;
     }
 
     private List<TelegramImage> loadTelegramImages(PostEntity post) throws IOException {
@@ -391,9 +415,6 @@ public class ChannelDispatchService {
         for (PostMediaEntity pm : rows) {
             MediaAssetEntity a = pm.getMediaAsset();
             String mime = a.getMimeType();
-            if (mime == null || !mime.toLowerCase(Locale.ROOT).startsWith("image/")) {
-                continue;
-            }
             MediaService.MediaFileView v = mediaService.fileForWorkspace(wsId, a.getId());
             try (InputStream in = v.resource().getInputStream()) {
                 out.add(new TelegramImage(in.readAllBytes(), mime));
@@ -402,54 +423,23 @@ public class ChannelDispatchService {
         return out;
     }
 
-    private void sendTelegramPhoto(String token, String chatId, TelegramImage img, String caption) throws Exception {
-        MultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
-        parts.add("chat_id", chatId);
-        parts.add("photo", telegramPhotoResource(img));
-        if (caption != null && !caption.isBlank()) {
-            parts.add("caption", caption);
-        }
-        telegramPostMultipart(token, "sendPhoto", parts);
-    }
-
-    private void sendTelegramMediaGroup(String token, String chatId, List<TelegramImage> slice, String caption)
-            throws Exception {
-        if (slice.size() < 2) {
-            throw new IllegalArgumentException("sendMediaGroup requires 2–10 photos");
-        }
-        MultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
-        parts.add("chat_id", chatId);
-        ArrayNode media = objectMapper.createArrayNode();
-        for (int i = 0; i < slice.size(); i++) {
-            TelegramImage img = slice.get(i);
-            ObjectNode item = objectMapper.createObjectNode();
-            item.put("type", "photo");
-            item.put("media", "attach://f" + i);
-            if (i == 0 && caption != null && !caption.isBlank()) {
-                item.put("caption", caption.length() > TELEGRAM_CAPTION_MAX
-                        ? caption.substring(0, TELEGRAM_CAPTION_MAX - 1) + "…"
-                        : caption);
-            }
-            media.add(item);
-            parts.add("f" + i, telegramPhotoResource(img));
-        }
-        parts.add("media", objectMapper.writeValueAsString(media));
-        telegramPostMultipart(token, "sendMediaGroup", parts);
-    }
-
-    private ByteArrayResource telegramPhotoResource(TelegramImage img) {
-        String name = telegramImageFilename(img.mimeType());
-        return new ByteArrayResource(img.data()) {
-            @Override
-            public String getFilename() {
-                return name;
-            }
-        };
-    }
-
-    private static String telegramImageFilename(String mime) {
+    private static String telegramAttachmentType(String mime) {
         if (mime == null) {
-            return "photo.jpg";
+            return "document";
+        }
+        String m = mime.toLowerCase(Locale.ROOT);
+        if (m.startsWith("image/")) {
+            return "image";
+        }
+        if (m.startsWith("video/")) {
+            return "video";
+        }
+        return "document";
+    }
+
+    private static String telegramAttachmentFilename(String mime) {
+        if (mime == null) {
+            return "file.bin";
         }
         String m = mime.toLowerCase(Locale.ROOT);
         if (m.contains("png")) {
@@ -461,28 +451,22 @@ public class ChannelDispatchService {
         if (m.contains("webp")) {
             return "photo.webp";
         }
-        return "photo.jpg";
-    }
-
-    private void telegramPostMultipart(String token, String method, MultiValueMap<String, Object> parts)
-            throws Exception {
-        String url = "https://api.telegram.org/bot" + token.trim() + "/" + method;
-        String raw;
-        try {
-            raw = http.post()
-                    .uri(url)
-                    .contentType(MediaType.MULTIPART_FORM_DATA)
-                    .body(parts)
-                    .retrieve()
-                    .body(String.class);
-        } catch (RestClientException e) {
-            String detail = describeTelegramNetworkFailure(e);
-            throw new IllegalStateException("Telegram HTTP: " + detail, e);
+        if (m.startsWith("image/")) {
+            return "photo.jpg";
         }
-        JsonNode root = objectMapper.readTree(raw == null ? "{}" : raw);
-        if (!root.path("ok").asBoolean(false)) {
-            throw new IllegalStateException("Telegram API: " + truncateError(raw));
+        if (m.contains("mp4")) {
+            return "video.mp4";
         }
+        if (m.contains("webm")) {
+            return "video.webm";
+        }
+        if (m.contains("pdf")) {
+            return "document.pdf";
+        }
+        if (m.contains("plain")) {
+            return "document.txt";
+        }
+        return "file.bin";
     }
 
     private void sendVk(PostEntity post, WorkspaceChannelEntity ch, Instant now) throws Exception {

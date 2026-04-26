@@ -55,6 +55,15 @@ export function PublishingChannelsPage() {
   const [maxAccessToken, setMaxAccessToken] = useState('')
   const [maxChatId, setMaxChatId] = useState('')
 
+  const [fbEnabled, setFbEnabled] = useState(false)
+  const [fbLabel, setFbLabel] = useState('')
+  const [fbAccessToken, setFbAccessToken] = useState('')
+  const [fbPageId, setFbPageId] = useState('')
+
+  const [xEnabled, setXEnabled] = useState(false)
+  const [xLabel, setXLabel] = useState('')
+  const [xBearer, setXBearer] = useState('')
+
   useEffect(() => {
     if (!channelsQ.data) {
       return
@@ -94,6 +103,19 @@ export function PublishingChannelsPage() {
       setMaxAccessToken(cfg.accessToken ?? '')
       setMaxChatId(cfg.chatId ?? '')
     }
+    {
+      const { row, cfg } = apply('FACEBOOK')
+      setFbEnabled(row?.enabled ?? false)
+      setFbLabel(row?.label ?? '')
+      setFbAccessToken(cfg.accessToken ?? '')
+      setFbPageId(cfg.pageId ?? '')
+    }
+    {
+      const { row, cfg } = apply('X')
+      setXEnabled(row?.enabled ?? false)
+      setXLabel(row?.label ?? '')
+      setXBearer(cfg.bearerToken ?? '')
+    }
   }, [channelsQ.data])
 
   const save = useMutation({
@@ -115,7 +137,10 @@ export function PublishingChannelsPage() {
         <p className="mt-2 text-sm text-[var(--muted)]">
           Здесь настраивается автоматическая отправка материалов в соцсети при публикации поста (статус «Опубликован» и
           публичная видимость). Поля ниже — всё, что нужно ввести; технический JSON собирается сам. Секреты (токены),
-          которые уже сохранены, можно не вводить повторно — оставьте поле пустым.
+          которые уже сохранены, можно не вводить повторно — оставьте поле пустым. Посты в{' '}
+          <strong>Telegram</strong>, <strong>Facebook</strong> и <strong>X</strong> уходят через сервис{' '}
+          <strong>noteapp-ai-integration</strong> (те же <code className="rounded bg-[var(--bg)] px-1">AI_INTEGRATION_*</code>, что
+          и для нейросетей); Telegram-изображения отправляются через него же.
         </p>
         <p className="mt-2 text-sm">
           <Link className="text-[var(--accent)] hover:underline" to="/app/profile">
@@ -389,6 +414,117 @@ export function PublishingChannelsPage() {
             }
           >
             {save.isPending ? 'Сохранение…' : 'Сохранить Одноклассники'}
+          </button>
+        </div>
+      </section>
+
+      {/* Facebook */}
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
+        <h2 className="text-lg font-semibold">Facebook (страница)</h2>
+        <p className="mt-2 text-sm text-[var(--muted)]">
+          Публикация идёт через <strong>noteapp-ai-integration</strong> (Graph API на стороне интеграции). Нужны page access
+          token с правом публикации на стене и числовой id страницы.
+        </p>
+        <div className="mt-4 space-y-3">
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <input type="checkbox" checked={fbEnabled} onChange={(e) => setFbEnabled(e.target.checked)} />
+            Канал включён
+          </label>
+          <label className="block text-sm font-medium">
+            Подпись (необязательно)
+            <input
+              className="mt-1 w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2"
+              value={fbLabel}
+              onChange={(e) => setFbLabel(e.target.value)}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Access token (страницы)
+            <input
+              type="password"
+              autoComplete="off"
+              className="mt-1 w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 font-mono text-sm"
+              value={fbAccessToken}
+              onChange={(e) => setFbAccessToken(e.target.value)}
+              placeholder="Оставьте пустым, если уже сохранён"
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            ID страницы (page id)
+            <input
+              className="mt-1 w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 font-mono text-sm"
+              value={fbPageId}
+              onChange={(e) => setFbPageId(e.target.value.trim())}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={save.isPending}
+            className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] disabled:opacity-60"
+            onClick={() =>
+              save.mutate({
+                type: 'FACEBOOK',
+                enabled: fbEnabled,
+                label: fbLabel.trim() || '',
+                configJson: JSON.stringify({
+                  accessToken: fbAccessToken.trim(),
+                  pageId: fbPageId.trim(),
+                }),
+              })
+            }
+          >
+            {save.isPending ? 'Сохранение…' : 'Сохранить Facebook'}
+          </button>
+        </div>
+      </section>
+
+      {/* X (Twitter) */}
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
+        <h2 className="text-lg font-semibold">X (Twitter)</h2>
+        <p className="mt-2 text-sm text-[var(--muted)]">
+          Публикация через <strong>noteapp-ai-integration</strong> (Twitter API v2, заголовок Bearer). Токен с правом
+          <code className="mx-1 rounded bg-[var(--bg)] px-1">tweets.write</code> (или аналог для вашего типа приложения).
+        </p>
+        <div className="mt-4 space-y-3">
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <input type="checkbox" checked={xEnabled} onChange={(e) => setXEnabled(e.target.checked)} />
+            Канал включён
+          </label>
+          <label className="block text-sm font-medium">
+            Подпись (необязательно)
+            <input
+              className="mt-1 w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2"
+              value={xLabel}
+              onChange={(e) => setXLabel(e.target.value)}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Bearer token (OAuth 2.0)
+            <input
+              type="password"
+              autoComplete="off"
+              className="mt-1 w-full max-w-md rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 font-mono text-sm"
+              value={xBearer}
+              onChange={(e) => setXBearer(e.target.value)}
+              placeholder="Оставьте пустым, если уже сохранён"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={save.isPending}
+            className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] disabled:opacity-60"
+            onClick={() =>
+              save.mutate({
+                type: 'X',
+                enabled: xEnabled,
+                label: xLabel.trim() || '',
+                configJson: JSON.stringify({
+                  bearerToken: xBearer.trim(),
+                }),
+              })
+            }
+          >
+            {save.isPending ? 'Сохранение…' : 'Сохранить X'}
           </button>
         </div>
       </section>

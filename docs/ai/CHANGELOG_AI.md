@@ -29,3 +29,5 @@
 - **2026-04-22**: Нейросети: Flyway V8 (`users.is_admin`, план публикации у поста, `app_ai_routing`), `POST /api/ai/studio/invoke`, admin `GET/PUT` routing + список сетей; фронт — AI-студия, расписание, баннер `channelSyndicationBlocked`, блок админа в профиле. Документация env и проверок: [`docs/ai/AI_INTEGRATION.md`](./AI_INTEGRATION.md); в `application.yml` — `AI_INTEGRATION_AVAILABLE_NETWORKS_PATH` (и синоним `INTEGRATION_AI_AVAILABLE_NETWORKS_PATH`), шаблон `apps/backend/.env.example` расширен.
 
 - **2026-04-23**: Совместимость с другими сервисами: `AI_INTEGRATION_URL` как альтернатива `AI_INTEGRATION_BASE_URL` (приоритет у `BASE_URL`); `ADMIN_EMAILS` — глобальные админы по email (`publisher.security.admin-emails`), в т.ч. для `ROLE_ADMIN` и поля `isAdmin` в `/api/me`.
+
+- **2026-04-26**: Telegram-кросспост полностью переведён на **noteapp-ai-integration** `/api/social/posts`: Publisher передаёт текст/caption и все вложения поста в `attachments[]` (Base64), прямой fallback на Telegram Bot API для текста/альбомов убран. Добавлен контрактный тест `HttpIntegrationSocialClientTest`.

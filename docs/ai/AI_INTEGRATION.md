@@ -24,6 +24,10 @@
 | `INTEGRATION_AI_PROCESS_PATH` | Синоним пути process | Опционально |
 | `INTEGRATION_AI_CONNECT_TIMEOUT_MS` / `INTEGRATION_AI_READ_TIMEOUT_MS` | Синонимы таймаутов | Опционально |
 | `INTEGRATION_AI_AVAILABLE_NETWORKS_PATH` | Синоним пути списка сетей | Опционально |
+| `AI_INTEGRATION_SOCIAL_POSTS_PATH` | Путь `POST` кросс-поста в соцсети (тот же URL и `X-API-Key`, что и для нейросетей) | `/api/social/posts` (контракт: `noteapp-ai-integration` → Telegram, Facebook, X) |
+| `INTEGRATION_AI_SOCIAL_POSTS_PATH` | Синоним пути social posts | Опционально |
+
+**Публикация в Telegram / Facebook / X (кросс-пост):** при заданных `AI_INTEGRATION_BASE_URL` и `AI_INTEGRATION_API_KEY` Publisher отправляет эти каналы в **noteapp-ai-integration** (`POST` на путь выше), а не напрямую в API платформ. Для Telegram через тот же запрос уходят текст/caption и вложения поста (`attachments[]`: изображения, видео, документы/файлы в Base64). **ВК, ОК, МАКС** — как прежде напрямую с Publisher.
 
 **Админ в Publisher (роль `ADMIN`, API нейросетей):** право даёт либо поле **`users.is_admin`** в БД, либо вхождение email в **`ADMIN_EMAILS`** (как в других сервисах). Без настроенной интеграции **Профиль → Нейросети** покажет пустой справочник; после настройки URL + `api-key` подтягивается список сетей и сохраняется **глобальный** приоритет маршрутизации (таблица `app_ai_routing`).
 

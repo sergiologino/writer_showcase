@@ -35,3 +35,5 @@
 - **2026-04-27**: Для `apps/web` добавлен production Dockerfile: сборка Vite в Node 22 и runtime на Nginx с SPA fallback, `/health`, кэшем assets и proxy `/api` на `API_UPSTREAM`. Обновлён `DEPLOY_FRONTEND.md`.
 
 - **2026-04-27**: Добавлен публичный лендинг `/` для блогеров/писателей, SEO-компонент для страниц SPA, backend endpoints `/robots.txt` и `/sitemap.xml` с публичными блогами/статьями; Nginx фронта проксирует SEO-файлы на API. В корень добавлен `README.md` с инструкцией Coolify и env.
+
+- **2026-04-27**: Расширена деплойная документация env для Coolify: подробно описаны backend/frontend переменные, Google/Yandex OAuth (`GOOGLE_CLIENT_*`, `YANDEX_CLIENT_*`, `PUBLISHER_OAUTH2_FRONTEND_URL`, `VITE_OAUTH_BASE_URL`) и redirect URI провайдеров.

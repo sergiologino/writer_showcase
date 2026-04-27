@@ -152,6 +152,7 @@ server {
 ### 4.3. Переменные сборки
 
 - **`VITE_API_BASE_URL`** — если API на другом origin; иначе оставьте пустым и используйте общий домен с proxy.
+- **`VITE_OAUTH_BASE_URL`** — публичный URL backend для перехода на `/oauth2/authorization/google` и `/oauth2/authorization/yandex`; в продакшене задайте явно, иначе dev-дефолт `http://localhost:8080` приведёт пользователей на localhost.
 - **`PUBLISHER_CORS_ALLOWED_ORIGINS_0`** на backend должен совпадать с URL, с которого открывается SPA.
 
 Другие `VITE_*` при необходимости добавляются позже (аналитика и т.д.).

@@ -14,8 +14,18 @@
 | `SERVER_PORT` | порт HTTP | `8080` |
 | `PUBLISHER_CORS_ALLOWED_ORIGINS_0` | точный origin frontend для CORS; если задан, имеет приоритет над localhost-паттернами | `https://app.example.com` |
 | `PUBLIC_SITE_BASE_URL` | публичный URL сайта для ссылок, `robots.txt` и `sitemap.xml` | `https://app.example.com` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | включают вход через Google; без пары значений кнопка Google скрыта | значения из Google Cloud Console |
+| `YANDEX_CLIENT_ID` / `YANDEX_CLIENT_SECRET` | включают вход через Yandex; без пары значений кнопка Yandex скрыта | значения из Yandex OAuth app |
+| `PUBLISHER_OAUTH2_FRONTEND_URL` | URL SPA, куда backend редиректит после OAuth (`/auth/callback#...`) | `https://app.example.com` |
 
 Продакшен: задайте сильный `JWT_SECRET` и уникальные учётные данные БД.
+
+OAuth redirect URI в кабинетах провайдеров:
+
+```text
+Google: https://<backend-public-domain>/login/oauth2/code/google
+Yandex: https://<backend-public-domain>/login/oauth2/code/yandex
+```
 
 ---
 

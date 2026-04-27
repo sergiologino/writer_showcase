@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { deleteMedia, fetchMediaPage, uploadMedia } from '../api/media'
+import { Seo } from '../components/Seo'
 
 export function MediaLibraryPage() {
   const qc = useQueryClient()
@@ -21,6 +22,13 @@ export function MediaLibraryPage() {
 
   return (
     <div className="space-y-6">
+      <Seo
+        title="Медиа"
+        description="Медиатека Altacod Publisher для изображений и файлов, которые автор использует в публикациях."
+        keywords="медиатека автора, изображения для блога, файлы публикаций"
+        canonicalPath="/app/media"
+        noIndex
+      />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Медиа</h1>

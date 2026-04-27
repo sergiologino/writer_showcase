@@ -5,6 +5,7 @@ import { login } from '../api/auth'
 import { ApiError } from '../api/client'
 import { Oauth2LoginButtons } from '../components/Oauth2LoginButtons'
 import { PublisherWordmark } from '../components/PublisherWordmark'
+import { Seo } from '../components/Seo'
 
 function safeInternalRedirect(raw: string | null): string | null {
   if (!raw || !raw.startsWith('/') || raw.startsWith('//')) {
@@ -40,6 +41,13 @@ export function LoginPage() {
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4">
+      <Seo
+        title="Вход"
+        description="Войдите в Altacod Publisher, чтобы работать с материалами, блогом, AI-студией и каналами публикации."
+        keywords="вход Publisher, авторский кабинет, блог для автора, публикация материалов"
+        canonicalPath="/login"
+        noIndex
+      />
       <div className="-mt-4 mb-6">
         <PublisherWordmark size="lg" />
       </div>

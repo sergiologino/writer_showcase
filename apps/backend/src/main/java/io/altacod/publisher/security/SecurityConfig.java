@@ -60,6 +60,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+                        .requestMatchers("/robots.txt", "/sitemap.xml").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers("/api/engagement/**").authenticated()
@@ -78,10 +79,10 @@ public class SecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         var patterns = properties.cors().allowedOriginPatterns();
         var origins = properties.cors().allowedOrigins();
-        if (!patterns.isEmpty()) {
-            config.setAllowedOriginPatterns(patterns);
-        } else if (!origins.isEmpty()) {
+        if (!origins.isEmpty()) {
             config.setAllowedOrigins(origins);
+        } else if (!patterns.isEmpty()) {
+            config.setAllowedOriginPatterns(patterns);
         } else {
             config.setAllowedOriginPatterns(List.of(
                     "http://localhost:[*]",

@@ -11,6 +11,7 @@ import { ApiError, apiFetch, resolveApiUrl } from '../api/client'
 import { uploadMedia } from '../api/media'
 import type { MeResponse, UpdateProfilePayload } from '../api/types'
 import { AiAdminSection } from '../components/AiAdminSection'
+import { Seo } from '../components/Seo'
 import { applyTheme, type Theme } from '../lib/theme'
 
 function isTheme(v: string | null | undefined): v is Theme {
@@ -263,6 +264,13 @@ export function ProfilePage() {
 
   return (
     <div className="space-y-8">
+      <Seo
+        title="Профиль автора"
+        description="Настройки профиля автора, темы интерфейса и административные инструменты Altacod Publisher."
+        keywords="профиль автора, настройки блога, AI настройки, рабочее пространство автора"
+        canonicalPath="/app/profile"
+        noIndex
+      />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Профиль</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">Имя, локаль и отображение. Email меняется отдельно (пока недоступно).</p>

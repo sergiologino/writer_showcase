@@ -11,6 +11,7 @@ import { createPost, fetchPost, updatePost, type PostPayload } from '../api/post
 import type { ChannelType, PostStatus, PostVisibility } from '../api/types'
 import { AiStudioModal } from '../components/AiStudioModal'
 import { AuthenticatedMediaThumb } from '../components/AuthenticatedMediaThumb'
+import { Seo } from '../components/Seo'
 import { channelFullName, deliveryStatusLabel, deliveryStatusTone } from '../lib/channelPublish'
 import { articleSourceToHtml } from '../lib/articleHtml'
 
@@ -234,6 +235,13 @@ export function PostEditorPage() {
 
   return (
     <div className="space-y-6">
+      <Seo
+        title={isNew ? 'Новый материал' : 'Редактирование материала'}
+        description="Редактор Altacod Publisher для подготовки статьи, медиа, SEO-описания, расписания и публикации в каналы."
+        keywords="редактор статьи, редактор блога, AI студия, публикация в Telegram, расписание публикации"
+        canonicalPath={isNew ? '/app/posts/new' : `/app/posts/${id}`}
+        noIndex
+      />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">{isNew ? 'Новый материал' : 'Редактирование'}</h1>

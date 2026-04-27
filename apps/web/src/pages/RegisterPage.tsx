@@ -5,6 +5,7 @@ import { register } from '../api/auth'
 import { ApiError } from '../api/client'
 import { Oauth2LoginButtons } from '../components/Oauth2LoginButtons'
 import { PublisherWordmark } from '../components/PublisherWordmark'
+import { Seo } from '../components/Seo'
 
 function safeInternalRedirect(raw: string | null): string | null {
   if (!raw || !raw.startsWith('/') || raw.startsWith('//')) {
@@ -35,6 +36,13 @@ export function RegisterPage() {
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-md flex-col justify-center px-4">
+      <Seo
+        title="Регистрация автора"
+        description="Создайте рабочее пространство автора в Altacod Publisher: блог, редактор материалов, медиа и публикация в каналы."
+        keywords="регистрация блогера, регистрация писателя, авторский блог, платформа для авторов"
+        canonicalPath="/register"
+        noIndex
+      />
       <div className="-mt-4 mb-6">
         <PublisherWordmark size="lg" />
       </div>

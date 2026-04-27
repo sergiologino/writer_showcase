@@ -176,4 +176,71 @@ class AuthAndPostIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("Live"));
     }
+
+    @Test
+    void robotsAndSitemapExposePublishedPublicPosts() throws Exception {
+        String email = "seo-" + System.nanoTime() + "@example.com";
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RegisterRequest(
+                                email,
+                                "password-123",
+                                "Seo Author"
+                        ))))
+                .andExpect(status().isCreated());
+
+        MvcResult login = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest(email, "password-123"))))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String token = objectMapper.readTree(login.getResponse().getContentAsString()).get("accessToken").asText();
+        MvcResult me = mockMvc.perform(get("/api/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        long workspaceId = objectMapper.readTree(me.getResponse().getContentAsString())
+                .path("workspaces").get(0).get("id").asLong();
+        String workspaceSlug = objectMapper.readTree(me.getResponse().getContentAsString())
+                .path("workspaces").get(0).get("slug").asText();
+
+        PostPayload published = new PostPayload(
+                "SEO Article",
+                "seo-article",
+                "Indexed excerpt",
+                "Body",
+                "<p>Body</p>",
+                PostVisibility.PUBLIC,
+                PostStatus.PUBLISHED,
+                null,
+                List.of(),
+                false,
+                null,
+                null,
+                null,
+                null
+        );
+
+        mockMvc.perform(post("/api/posts")
+                        .header("Authorization", "Bearer " + token)
+                        .header("X-Workspace-Id", String.valueOf(workspaceId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(published)))
+                .andExpect(status().isCreated());
+
+        MvcResult robots = mockMvc.perform(get("/robots.txt"))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(robots.getResponse().getContentAsString()).contains("Sitemap: http://localhost/sitemap.xml");
+
+        MvcResult sitemap = mockMvc.perform(get("/sitemap.xml"))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(sitemap.getResponse().getContentAsString())
+                .contains("<loc>http://localhost/</loc>")
+                .contains("<loc>http://localhost/blog/" + workspaceSlug + "</loc>")
+                .contains("<loc>http://localhost/blog/" + workspaceSlug + "/p/seo-article</loc>");
+    }
 }

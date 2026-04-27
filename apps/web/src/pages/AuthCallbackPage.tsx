@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { establishSessionWithTokens } from '../api/auth'
 import type { TokenResponse } from '../api/types'
 import { PublisherWordmark } from '../components/PublisherWordmark'
+import { Seo } from '../components/Seo'
 
 function safeInternalRedirect(raw: string | null): string | null {
   if (!raw || !raw.startsWith('/') || raw.startsWith('//')) {
@@ -58,6 +59,13 @@ export function AuthCallbackPage() {
 
   return (
     <div className="mx-auto flex min-h-[50vh] max-w-md flex-col justify-center px-4">
+      <Seo
+        title="Завершение входа"
+        description="Техническая страница завершения входа в Altacod Publisher."
+        keywords="OAuth вход, авторизация Publisher"
+        canonicalPath="/auth/callback"
+        noIndex
+      />
       <div className="-mt-4 mb-6">
         <PublisherWordmark size="lg" />
       </div>

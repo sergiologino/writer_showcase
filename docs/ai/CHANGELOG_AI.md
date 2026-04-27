@@ -31,3 +31,7 @@
 - **2026-04-23**: Совместимость с другими сервисами: `AI_INTEGRATION_URL` как альтернатива `AI_INTEGRATION_BASE_URL` (приоритет у `BASE_URL`); `ADMIN_EMAILS` — глобальные админы по email (`publisher.security.admin-emails`), в т.ч. для `ROLE_ADMIN` и поля `isAdmin` в `/api/me`.
 
 - **2026-04-26**: Telegram-кросспост полностью переведён на **noteapp-ai-integration** `/api/social/posts`: Publisher передаёт текст/caption и все вложения поста в `attachments[]` (Base64), прямой fallback на Telegram Bot API для текста/альбомов убран. Добавлен контрактный тест `HttpIntegrationSocialClientTest`.
+
+- **2026-04-27**: Для `apps/web` добавлен production Dockerfile: сборка Vite в Node 22 и runtime на Nginx с SPA fallback, `/health`, кэшем assets и proxy `/api` на `API_UPSTREAM`. Обновлён `DEPLOY_FRONTEND.md`.
+
+- **2026-04-27**: Добавлен публичный лендинг `/` для блогеров/писателей, SEO-компонент для страниц SPA, backend endpoints `/robots.txt` и `/sitemap.xml` с публичными блогами/статьями; Nginx фронта проксирует SEO-файлы на API. В корень добавлен `README.md` с инструкцией Coolify и env.

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { fetchWorkspaceChannels, upsertWorkspaceChannel } from '../api/channels'
 import type { ChannelType } from '../api/types'
+import { Seo } from '../components/Seo'
 
 function displayValue(v: unknown): string {
   if (v === null || v === undefined) {
@@ -132,6 +133,13 @@ export function PublishingChannelsPage() {
 
   return (
     <div className="space-y-10">
+      <Seo
+        title="Каналы публикации"
+        description="Настройки каналов публикации Altacod Publisher: Telegram, VK, Одноклассники, MAX, Facebook и X."
+        keywords="каналы публикации, публикация в Telegram, публикация во ВКонтакте, кросспостинг, POSSE"
+        canonicalPath="/app/channels"
+        noIndex
+      />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Каналы публикации</h1>
         <p className="mt-2 text-sm text-[var(--muted)]">

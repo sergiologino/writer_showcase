@@ -4,6 +4,7 @@ import { resolveApiUrl } from '../api/client'
 import { PublicAuthorChip } from '../components/PublicAuthorChip'
 import { PublicSiteNav } from '../components/PublicSiteNav'
 import { fetchPublicPosts } from '../api/posts'
+import { Seo } from '../components/Seo'
 
 function FirstMediaThumb({
   url,
@@ -57,6 +58,12 @@ export function PublicBlogPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-8 py-10">
+      <Seo
+        title={`Блог ${slug}`}
+        description={`Публичный блог ${slug}: новые статьи, заметки и материалы автора.`}
+        keywords={`блог ${slug}, статьи ${slug}, авторский блог, публичные материалы`}
+        canonicalPath={`/blog/${slug}`}
+      />
       <PublicSiteNav />
       <header className="space-y-1 border-b border-[var(--border)] pb-6">
         <p className="text-xs font-medium uppercase tracking-widest text-[var(--muted)]">Публичная лента</p>

@@ -6,6 +6,7 @@ import { getStoredAccessToken, resolveApiUrl } from '../api/client'
 import { fetchPublicEngagement, postPublicComment, togglePostLike } from '../api/publicEngagement'
 import { PublicAuthorChip } from '../components/PublicAuthorChip'
 import { PublicSiteNav } from '../components/PublicSiteNav'
+import { Seo } from '../components/Seo'
 
 export function PublicPostPage() {
   const { workspaceSlug, postSlug } = useParams<{ workspaceSlug: string; postSlug: string }>()
@@ -92,6 +93,23 @@ export function PublicPostPage() {
 
   return (
     <article className="mx-auto max-w-2xl space-y-6 py-10">
+      <Seo
+        title={post.title}
+        description={post.excerpt || `Статья ${post.title} в публичном блоге ${ws}.`}
+        keywords={[
+          post.title,
+          post.authorDisplayName,
+          post.category?.name,
+          ...post.tags.map((tag) => tag.name),
+          'авторский блог',
+          'статья',
+        ]
+          .filter(Boolean)
+          .join(', ')}
+        canonicalPath={`/blog/${ws}/p/${post.slug}`}
+        image={post.media?.find((m) => m.mimeType?.startsWith('image/'))?.url ?? post.authorAvatarUrl}
+        type="article"
+      />
       <PublicSiteNav />
       <Link className="text-sm text-[var(--muted)] hover:text-[var(--accent)]" to={`/blog/${ws}`}>
         ← все материалы

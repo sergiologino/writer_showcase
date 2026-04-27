@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface PostRepository extends JpaRepository<PostEntity, Long> {
@@ -61,4 +62,23 @@ public interface PostRepository extends JpaRepository<PostEntity, Long> {
             @Param("slug") String slug,
             @Param("workspaceSlug") String workspaceSlug
     );
+
+    @Query("""
+            select distinct w.slug from PostEntity p
+            join p.workspace w
+            where p.visibility = io.altacod.publisher.post.PostVisibility.PUBLIC
+            and p.status = io.altacod.publisher.post.PostStatus.PUBLISHED
+            order by w.slug asc
+            """)
+    List<String> findPublicWorkspaceSlugs();
+
+    @EntityGraph(attributePaths = {"workspace"})
+    @Query("""
+            select p from PostEntity p
+            join p.workspace w
+            where p.visibility = io.altacod.publisher.post.PostVisibility.PUBLIC
+            and p.status = io.altacod.publisher.post.PostStatus.PUBLISHED
+            order by coalesce(p.publishedAt, p.updatedAt, p.createdAt) desc
+            """)
+    List<PostEntity> findPublishedPublicForSitemap();
 }

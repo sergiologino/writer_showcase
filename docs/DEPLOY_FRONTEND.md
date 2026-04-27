@@ -4,9 +4,49 @@
 
 По умолчанию клиент ходит в API по **относительным** путям `/api/...` (тот же origin, что у страницы, или прокси Vite в dev).
 
-**Раздельные домены:** перед сборкой задайте `VITE_API_BASE_URL` (см. `apps/web/.env.example`), например `https://api.example.com` **без** хвостового слэша. Тогда запросы уйдут на этот хост; в настройках backend укажите реальный origin фронта в `CORS_ORIGINS`.
+**Раздельные домены:** перед сборкой задайте `VITE_API_BASE_URL` (см. `apps/web/.env.example`), например `https://api.example.com` **без** хвостового слэша. Тогда запросы уйдут на этот хост; в настройках backend укажите реальный origin фронта через `PUBLISHER_CORS_ALLOWED_ORIGINS_0`.
 
 Рекомендуемый продакшен-вариант при одном домене: `https://app.example.com` — статика + reverse proxy для `/api/*` → Spring Boot.
+
+---
+
+## 0. Docker-образ для автоматизированного деплоя
+
+В `apps/web/Dockerfile` добавлен production-образ:
+
+- stage `node:22-alpine` выполняет `npm install && npm run build`;
+- runtime `nginx:1.27-alpine` отдаёт `dist`;
+- SPA fallback: прямой заход на `/app/...` возвращает `index.html`;
+- `/api/*`, `/robots.txt` и `/sitemap.xml` проксируются на backend через переменную `API_UPSTREAM`;
+- `/health` возвращает `ok`.
+
+Локальная сборка образа из папки `apps/web`:
+
+```text
+docker build -t publisher-web .
+```
+
+Запуск рядом с backend:
+
+```text
+docker run --rm -p 8081:80 \
+  -e API_UPSTREAM=http://host.docker.internal:8080 \
+  publisher-web
+```
+
+Для серверного Docker network обычно указывайте hostname backend-сервиса:
+
+```text
+API_UPSTREAM=http://publisher-api:8080
+```
+
+Если API живёт на отдельном публичном origin и прокси `/api` не нужен, можно собрать фронт с build arg:
+
+```text
+docker build --build-arg VITE_API_BASE_URL=https://api.example.com -t publisher-web .
+```
+
+В большинстве продакшен-сценариев предпочтительнее один публичный домен и proxy `/api`.
 
 ---
 
@@ -90,7 +130,7 @@ server {
 
 1. **Static site** (или аналог):  
    - Корень репозитория или подкаталог **`apps/web`**.  
-   - Команда сборки: `npm ci && npm run build`.  
+   - Команда сборки: `npm install && npm run build`.  
    - Публикуемая папка: **`dist`**.
 
 2. Если Coolify позволяет добавить **маршрут / прокси** для пути `/api` на внутренний сервис backend — включите его и укажите URL контейнера/сервиса API (порт 8080).
@@ -112,7 +152,7 @@ server {
 ### 4.3. Переменные сборки
 
 - **`VITE_API_BASE_URL`** — если API на другом origin; иначе оставьте пустым и используйте общий домен с proxy.
-- **`CORS_ORIGINS`** на backend должен совпадать с URL, с которого открывается SPA.
+- **`PUBLISHER_CORS_ALLOWED_ORIGINS_0`** на backend должен совпадать с URL, с которого открывается SPA.
 
 Другие `VITE_*` при необходимости добавляются позже (аналитика и т.д.).
 
@@ -127,4 +167,5 @@ server {
 - `npm run build` проходит без ошибок.
 - Открытие корня сайта отдаёт SPA; прямой заход на `/app/feed` не даёт 404 на сервере (настроен fallback на `index.html`).
 - Запросы из браузера к `/api/...` доходят до Spring Boot (вкладка Network).
-- В настройках backend указан тот же origin в `CORS_ORIGINS`, что и у пользовательского URL фронта.
+- `/robots.txt` и `/sitemap.xml` открываются на публичном домене и отдают данные backend.
+- В настройках backend указан тот же origin в `PUBLISHER_CORS_ALLOWED_ORIGINS_0`, что и у пользовательского URL фронта.

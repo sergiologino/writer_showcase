@@ -12,7 +12,8 @@
 | `JWT_SECRET` | секрет подписи JWT, **длинная строка** | минимум 32+ байт для HS256 |
 | `JWT_ACCESS_TTL_MINUTES` | TTL access-токена | `60` |
 | `SERVER_PORT` | порт HTTP | `8080` |
-| `publisher.cors.*` (в `application.yml` / профиле) | CORS: по умолчанию паттерны `http://localhost:*` и `http://127.0.0.1:*`. Для продакшена задайте `publisher.cors.allowed-origins` (список точных URL) и при необходимости очистите `allowed-origin-patterns` | см. `application.yml` |
+| `PUBLISHER_CORS_ALLOWED_ORIGINS_0` | точный origin frontend для CORS; если задан, имеет приоритет над localhost-паттернами | `https://app.example.com` |
+| `PUBLIC_SITE_BASE_URL` | публичный URL сайта для ссылок, `robots.txt` и `sitemap.xml` | `https://app.example.com` |
 
 Продакшен: задайте сильный `JWT_SECRET` и уникальные учётные данные БД.
 
@@ -161,7 +162,7 @@ Coolify разворачивает приложение из Git и/или Docke
 
 - Укажите порт контейнера **8080** (или задайте `SERVER_PORT` и проброс в Coolify).
 - Включите HTTPS через встроенный reverse proxy Coolify.
-- В **`publisher.cors.allowed-origins`** укажите **точный** URL фронтенда (схема + хост + при необходимости порт; без лишнего слэша в конце) и при необходимости отключите шаблоны `localhost` в `allowed-origin-patterns`.
+- В **`PUBLISHER_CORS_ALLOWED_ORIGINS_0`** укажите **точный** URL фронтенда (схема + хост + при необходимости порт; без лишнего слэша в конце). Также задайте **`PUBLIC_SITE_BASE_URL`** тем же публичным URL, чтобы sitemap и ссылки в каналах были корректными.
 
 ### 3.5. Обновление версии
 
@@ -173,4 +174,5 @@ Coolify разворачивает приложение из Git и/или Docke
 
 - Логи без ошибок Flyway и подключения к БД.
 - `POST /api/auth/register` с хоста фронта или через curl (учитывая CORS для браузера).
+- `/robots.txt` и `/sitemap.xml` доступны без авторизации на публичном домене.
 - Секреты не в Git; для Coolify — только в UI Secrets / Variables.

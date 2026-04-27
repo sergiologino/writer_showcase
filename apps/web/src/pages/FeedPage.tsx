@@ -9,6 +9,7 @@ import {
   deliveryStatusTone,
 } from '../lib/channelPublish'
 import { useState } from 'react'
+import { Seo } from '../components/Seo'
 
 const statusLabel: Record<PostStatus, string> = {
   DRAFT: 'Черновик',
@@ -100,6 +101,13 @@ export function FeedPage() {
 
   return (
     <div className="space-y-6">
+      <Seo
+        title="Лента материалов"
+        description="Лента материалов в рабочем пространстве Altacod Publisher: черновики, публикации и статусы отправки в каналы."
+        keywords="лента материалов, редактор блога, черновики автора, публикация в каналы"
+        canonicalPath="/app/feed"
+        noIndex
+      />
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Лента</h1>
         <p className="mt-1 text-sm text-[var(--muted)]">

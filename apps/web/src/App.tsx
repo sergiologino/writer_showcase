@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { FeedPage } from './pages/FeedPage'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
+import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
 import { MediaLibraryPage } from './pages/MediaLibraryPage'
 import { PostEditorPage } from './pages/PostEditorPage'
@@ -44,7 +45,7 @@ export default function App() {
         <Route path="posts/new" element={<PostEditorPage />} />
         <Route path="posts/:id" element={<PostEditorPage />} />
       </Route>
-      <Route path="/" element={<Navigate to="/app/feed" replace />} />
+      <Route path="/" element={<LandingPage />} />
     </Routes>
   )
 }

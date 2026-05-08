@@ -1,11 +1,31 @@
-map $http_x_forwarded_host $publisher_forwarded_host {
-    default $http_x_forwarded_host;
+map $http_x_publisher_external_host $publisher_external_host {
+    default $http_x_publisher_external_host;
+    "" $http_x_forwarded_host;
+}
+
+map $publisher_external_host $publisher_forwarded_host {
+    default $publisher_external_host;
     "" $host;
 }
 
-map $http_x_forwarded_proto $publisher_forwarded_proto {
-    default $http_x_forwarded_proto;
+map $http_x_publisher_external_proto $publisher_external_proto {
+    default $http_x_publisher_external_proto;
+    "" $http_x_forwarded_proto;
+}
+
+map $publisher_external_proto $publisher_forwarded_proto {
+    default $publisher_external_proto;
     "" $scheme;
+}
+
+map $http_x_publisher_external_port $publisher_external_port {
+    default $http_x_publisher_external_port;
+    "" $http_x_forwarded_port;
+}
+
+map $publisher_external_port $publisher_forwarded_port {
+    default $publisher_external_port;
+    "" $server_port;
 }
 
 server {
@@ -34,6 +54,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Host $publisher_forwarded_host;
         proxy_set_header X-Forwarded-Proto $publisher_forwarded_proto;
+        proxy_set_header X-Forwarded-Port $publisher_forwarded_port;
     }
 
     location /oauth2/ {
@@ -44,6 +65,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Host $publisher_forwarded_host;
         proxy_set_header X-Forwarded-Proto $publisher_forwarded_proto;
+        proxy_set_header X-Forwarded-Port $publisher_forwarded_port;
     }
 
     location /login/oauth2/ {
@@ -54,6 +76,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Host $publisher_forwarded_host;
         proxy_set_header X-Forwarded-Proto $publisher_forwarded_proto;
+        proxy_set_header X-Forwarded-Port $publisher_forwarded_port;
     }
 
     location = /robots.txt {
@@ -64,6 +87,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Host $publisher_forwarded_host;
         proxy_set_header X-Forwarded-Proto $publisher_forwarded_proto;
+        proxy_set_header X-Forwarded-Port $publisher_forwarded_port;
     }
 
     location = /sitemap.xml {
@@ -74,6 +98,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Host $publisher_forwarded_host;
         proxy_set_header X-Forwarded-Proto $publisher_forwarded_proto;
+        proxy_set_header X-Forwarded-Port $publisher_forwarded_port;
     }
 
     location / {

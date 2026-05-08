@@ -7,7 +7,10 @@ RUN mvn -B -DskipTests package
 
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
-RUN addgroup -S app && adduser -S app -G app -u 10001
+RUN addgroup -S app \
+    && adduser -S app -G app -u 10001 \
+    && mkdir -p /data/storage \
+    && chown -R app:app /data
 COPY --from=build /build/target/publisher-api-*.jar /app/app.jar
 USER app
 EXPOSE 8080

@@ -8,7 +8,6 @@ RUN npm install
 
 COPY . .
 
-# Optional: set this at build time when API is on a separate origin.
 ARG VITE_API_BASE_URL=""
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 ARG VITE_OAUTH_BASE_URL=""

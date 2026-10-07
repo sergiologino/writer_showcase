@@ -37,7 +37,7 @@ mvnw.cmd spring-boot:run
 1. PostgreSQL 16.
 2. Redis 7, если нужна надёжная очередь фоновой публикации.
 3. Backend из `apps/backend/Dockerfile`, порт контейнера `8080`.
-4. Frontend из `apps/web/Dockerfile`, порт контейнера `80`; `API_UPSTREAM` указывает на внутренний URL backend.
+4. Frontend из `apps/web/Dockerfile`, порт контейнера `80`; `API_UPSTREAM` указывает на доступный в общей Docker-сети URL backend. Имя `api` по умолчанию работает только при наличии такого сервиса в сети; при отдельном ресурсе Coolify задайте его фактический hostname.
 
 Для публичного сайта удобнее один домен на frontend-контейнере: он отдаёт SPA, `/health`, проксирует `/api/*`, `/robots.txt` и `/sitemap.xml` в backend.
 

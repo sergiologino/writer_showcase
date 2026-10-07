@@ -6,7 +6,7 @@
 - **Память проекта**: `docs/ai/*`. Сверка с исходным ТЗ и план работ: [`TZ_BACKLOG.md`](../TZ_BACKLOG.md). Рабочий бэклог и приоритеты очереди: [`TODO.md`](./TODO.md).
 - **Деплой (инструкции)**: [`DEPLOY_BACKEND.md`](../DEPLOY_BACKEND.md), [`DEPLOY_FRONTEND.md`](../DEPLOY_FRONTEND.md) в каталоге `docs/`.
 - **Docker**: `docker-compose.yml` — PostgreSQL 16 и Redis 7; опционально сервис **`api`** (профиль `backend`): **`npm run docker:up:all`**. Образ собирается из **`apps/backend/Dockerfile`** (Maven внутри стадии build). Только БД + Redis без API: **`npm run docker:up`** (Redis нужен API с `PUBLISHER_REDIS_ENABLED=true`).
-- **Frontend Docker**: `apps/web/Dockerfile` — multi-stage production-образ (Node 22 build через `npm install && npm run build` → Nginx runtime), `nginx.conf.template` отдаёт SPA с fallback на `index.html`, `/health`, кэшированные `assets/*` и proxy `/api/*`, `/robots.txt`, `/sitemap.xml` на `API_UPSTREAM` (по умолчанию `http://api:8080`). Инструкции: [`DEPLOY_FRONTEND.md`](../DEPLOY_FRONTEND.md).
+- **Frontend Docker**: `apps/web/Dockerfile` — multi-stage production-образ (Node 22 build через `npm install && npm run build` → Nginx runtime), `nginx.conf.template` отдаёт SPA с fallback на `index.html`, `/health`, кэшированные `assets/*` и proxy `/api/*`, `/robots.txt`, `/sitemap.xml` на `API_UPSTREAM` (по умолчанию `http://api:8080`). Backend разрешается при запросе: frontend стартует и проходит `/health` даже при временно недоступном API; для работы proxy нужен доступный hostname backend в Docker-сети. Инструкции: [`DEPLOY_FRONTEND.md`](../DEPLOY_FRONTEND.md).
 
 ## Backend (`apps/backend`)
 

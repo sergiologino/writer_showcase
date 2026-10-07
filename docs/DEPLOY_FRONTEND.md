@@ -126,6 +126,8 @@ server {
 
 ## 4. Coolify
 
+В production проекта Publisher на `myposts.pro` frontend входит в ресурс **`publisher-compose`** (`docker-compose.coolify.yml`). Отдельный ресурс **`writer_showcase:publisher-front`** развёртывает другой экземпляр frontend; его деплой не обновляет `myposts.pro`. Перед деплоем сверяйте домен ресурса с адресом, который открывает пользователь.
+
 ### 4.1. Один сайт: статика + прокси API
 
 Зависит от возможностей вашей версии Coolify:

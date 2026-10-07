@@ -26,6 +26,7 @@
 - Dev: прокси Vite на `http://localhost:8080` для `/api`. Опционально **`VITE_API_BASE_URL`** для отдельного origin API (см. `apps/web/.env.example`).
 - Production Docker: `apps/web/Dockerfile`; runtime-переменная **`API_UPSTREAM`** задаёт backend для Nginx proxy `/api`.
 - Страница «Каналы публикации» содержит пошаговые инструкции подключения Facebook Page и X (наряду с остальными каналами); пользовательское описание доставки TG/Facebook/X использует общее название промежуточного сервиса.
+- В Coolify у проекта Publisher есть два ресурса с frontend: отдельный `writer_showcase:publisher-front` и `publisher-compose` (файл `docker-compose.coolify.yml`). Публичный `myposts.pro` использует frontend из `publisher-compose`; для обновления этого сайта нужно передеплоить именно `publisher-compose`.
 
 ## Следующие шаги по плану (приоритет)
 

@@ -13,6 +13,7 @@ apps/web/.vite/
 .env.local
 .env.*.local
 *.pem
+client_secret_*.json
 
 # IDE / OS
 .idea/

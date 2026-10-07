@@ -553,6 +553,7 @@ public class PostService {
         return new PostOutboundInfoDto(
                 log.getChannelType(),
                 log.getStatus(),
+                log.getSentAt(),
                 log.getExternalUrl(),
                 errForUi,
                 log.getMetricsFetchedAt(),

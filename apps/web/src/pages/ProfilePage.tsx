@@ -282,6 +282,14 @@ export function ProfilePage() {
             Каналы публикации (ВК, ОК, Telegram) — инструкции и поля
           </Link>
         </p>
+        <p className="mt-4">
+          <Link
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm font-medium text-[var(--text)] hover:border-[var(--accent)]"
+            to="/app/local-storage"
+          >
+            Просмотр локального хранилища
+          </Link>
+        </p>
       </div>
 
       <ProfilePhotosSection me={profile} />

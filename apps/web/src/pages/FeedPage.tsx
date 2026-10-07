@@ -8,8 +8,9 @@ import {
   deliveryStatusLabel,
   deliveryStatusTone,
 } from '../lib/channelPublish'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Seo } from '../components/Seo'
+import { listLocalPosts, type LocalPost } from '../lib/localPosts'
 
 const statusLabel: Record<PostStatus, string> = {
   DRAFT: 'Черновик',
@@ -93,6 +94,15 @@ function OutboundChips({ outbound }: { outbound: PostOutboundInfo[] }) {
 export function FeedPage() {
   const [status, setStatus] = useState<PostStatus | ''>('')
   const [q, setQ] = useState('')
+  const [localPosts, setLocalPosts] = useState<LocalPost[]>([])
+  const [localError, setLocalError] = useState<string | null>(null)
+  const workspaceId = localStorage.getItem('workspaceId') ?? 'default'
+
+  useEffect(() => {
+    void listLocalPosts(workspaceId).then(setLocalPosts).catch(() => {
+      setLocalError('Не удалось прочитать локальную базу материалов.')
+    })
+  }, [workspaceId])
 
   const query = useQuery({
     queryKey: ['posts', status || 'all', q],
@@ -117,6 +127,31 @@ export function FeedPage() {
           (ожидание, успех, ошибка, отклонение модератором) и метрики с площадок.
         </p>
       </div>
+
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium">Локальные материалы</h2>
+            <p className="text-xs text-[var(--muted)]">Копии на этом устройстве. Файлы можно посмотреть через профиль.</p>
+          </div>
+        </div>
+        {localError ? <p className="mt-2 text-xs text-red-600" role="alert">{localError}</p> : null}
+        {localPosts.length > 0 ? (
+          <ul className="mt-3 space-y-2">
+            {localPosts.map((post) => (
+              <li key={post.key}>
+                <Link
+                  className="block rounded-lg border border-[var(--border)] px-3 py-2 text-sm hover:border-[var(--accent)]"
+                  to={`/app/posts/${post.serverId ?? `local-${post.localId}`}`}
+                >
+                  {post.payload.title || 'Без заголовка'}
+                  <span className="ml-2 text-xs text-[var(--muted)]">{post.serverId ? 'копия' : 'локальный черновик'}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="mt-3 text-xs text-[var(--muted)]">Локальных материалов пока нет.</p>}
+      </section>
 
       <div className="flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm sm:flex-row sm:items-end">
         <label className="block flex-1 text-sm">

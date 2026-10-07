@@ -74,6 +74,7 @@ export type ChannelDeliveryStatus = 'PENDING' | 'SENT' | 'FAILED' | 'REJECTED'
 export interface PostOutboundInfo {
   channelType: ChannelType
   deliveryStatus: ChannelDeliveryStatus
+  sentAt?: string | null
   externalUrl: string | null
   lastError: string | null
   metricsFetchedAt: string | null

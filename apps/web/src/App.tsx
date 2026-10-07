@@ -5,6 +5,7 @@ import { FeedPage } from './pages/FeedPage'
 import { AuthCallbackPage } from './pages/AuthCallbackPage'
 import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
+import { LocalStoragePage } from './pages/LocalStoragePage'
 import { MediaLibraryPage } from './pages/MediaLibraryPage'
 import { PostEditorPage } from './pages/PostEditorPage'
 import { ProfilePage } from './pages/ProfilePage'
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="feed" element={<FeedPage />} />
         <Route path="media" element={<MediaLibraryPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="local-storage" element={<LocalStoragePage />} />
         <Route path="channels" element={<PublishingChannelsPage />} />
         <Route path="posts/new" element={<PostEditorPage />} />
         <Route path="posts/:id" element={<PostEditorPage />} />

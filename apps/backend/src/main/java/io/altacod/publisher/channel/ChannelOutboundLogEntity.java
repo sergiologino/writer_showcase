@@ -63,6 +63,9 @@ public class ChannelOutboundLogEntity {
     @Column(name = "external_url", length = 2048)
     private String externalUrl;
 
+    @Column(name = "sent_at")
+    private Instant sentAt;
+
     @Column(name = "metrics_json", columnDefinition = "TEXT")
     private String metricsJson;
 
@@ -130,6 +133,10 @@ public class ChannelOutboundLogEntity {
         return externalUrl;
     }
 
+    public Instant getSentAt() {
+        return sentAt;
+    }
+
     public String getMetricsJson() {
         return metricsJson;
     }
@@ -150,6 +157,7 @@ public class ChannelOutboundLogEntity {
         this.retryable = true;
         this.externalId = externalId;
         this.externalUrl = externalUrl;
+        this.sentAt = now;
         this.metricsJson = null;
         this.metricsFetchedAt = null;
         this.updatedAt = now;

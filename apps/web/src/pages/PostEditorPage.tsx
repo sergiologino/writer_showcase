@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useForm, useWatch } from 'react-hook-form'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
 import { fetchWorkspaceChannels } from '../api/channels'
@@ -9,11 +9,18 @@ import { createCategory, fetchCategories } from '../api/categories'
 import { uploadMedia } from '../api/media'
 import { createPost, fetchPost, updatePost, type PostPayload } from '../api/posts'
 import type { ChannelType, PostStatus, PostVisibility } from '../api/types'
+import type { MeResponse } from '../api/types'
 import { AiStudioModal } from '../components/AiStudioModal'
 import { AuthenticatedMediaThumb } from '../components/AuthenticatedMediaThumb'
+import { LocalMediaThumb } from '../components/LocalMediaThumb'
 import { Seo } from '../components/Seo'
 import { channelFullName, deliveryStatusLabel, deliveryStatusTone } from '../lib/channelPublish'
 import { articleSourceToHtml } from '../lib/articleHtml'
+import {
+  bindServerId, choosePostFolder, folderPickerAvailable, getPostFolder,
+  loadLocalPost, localPostKey, publicationFromResponse, readLocalMedia,
+  saveLocalPost, saveSelectedMedia, type LocalMedia, type LocalPost, type LocalPublication,
+} from '../lib/localPosts'
 
 function instantToDatetimeLocalValue(iso: string | null | undefined): string {
   if (!iso) {
@@ -66,7 +73,8 @@ export function PostEditorPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const isNew = !id || id === 'new'
+  const localRouteId = id?.startsWith('local-') ? id.slice('local-'.length) : null
+  const isNew = !id || id === 'new' || !!localRouteId
 
   const existing = useQuery({
     queryKey: ['post', id],
@@ -84,7 +92,7 @@ export function PostEditorPage() {
     queryFn: fetchWorkspaceChannels,
   })
 
-  type MediaRow = { id: number; mimeType: string | null }
+  type MediaRow = LocalMedia & { id: number | null }
   const [mediaItems, setMediaItems] = useState<MediaRow[]>([])
   const [uploadBusy, setUploadBusy] = useState(false)
   const [uploadErr, setUploadErr] = useState<string | null>(null)
@@ -96,6 +104,27 @@ export function PostEditorPage() {
   const [scheduledLocal, setScheduledLocal] = useState('')
   const [studioOpen, setStudioOpen] = useState(false)
   const [aiGeneratedOverride, setAiGeneratedOverride] = useState<boolean | null>(null)
+  const [folderName, setFolderName] = useState<string | null>(null)
+  const [localMessage, setLocalMessage] = useState<string | null>(null)
+  const [localError, setLocalError] = useState<string | null>(null)
+  const localIdRef = useRef<string>(localRouteId ?? crypto.randomUUID())
+  const localLoadedRef = useRef(false)
+  const localInitializedRef = useRef(false)
+  const localPublishChannelsRef = useRef<ChannelType[] | null>(null)
+  const localPublicationRef = useRef<LocalPublication | undefined>(undefined)
+  const localSaveQueue = useRef<Promise<void>>(Promise.resolve())
+  const workspaceId = localStorage.getItem('workspaceId') ?? 'default'
+  const routeKey = `${workspaceId}:${id ?? 'new'}`
+  const previousRouteRef = useRef(routeKey)
+  if (previousRouteRef.current !== routeKey) {
+    previousRouteRef.current = routeKey
+    localInitializedRef.current = false
+    localLoadedRef.current = false
+    localPublishChannelsRef.current = null
+    localPublicationRef.current = undefined
+    if (id === 'new' || localRouteId) localIdRef.current = localRouteId ?? crypto.randomUUID()
+  }
+  const localKey = localPostKey(workspaceId, isNew ? localIdRef.current : Number(id))
 
   const enabledWorkspaceChannels = useMemo(
     () => (channelsQ.data ?? []).filter((c) => c.enabled),
@@ -109,9 +138,10 @@ export function PostEditorPage() {
 
   const { watch, setValue } = form
   const bodySourceWatch = watch('bodySource')
+  const watchedValues = useWatch({ control: form.control })
 
   useEffect(() => {
-    if (existing.data) {
+    if (existing.data && !localLoadedRef.current) {
       const ed = existing.data
       form.reset({
         title: ed.title,
@@ -124,21 +154,84 @@ export function PostEditorPage() {
         categoryId: ed.categoryId ?? null,
       })
       const sorted = [...(ed.media ?? [])].sort((a, b) => a.sortOrder - b.sortOrder)
-      setMediaItems(sorted.map((m) => ({ id: m.mediaAssetId, mimeType: m.mimeType })))
+      setMediaItems(sorted.map((m) => ({
+        id: m.mediaAssetId, serverId: m.mediaAssetId, mimeType: m.mimeType,
+        fileName: '', originalName: null,
+      })))
+      const me = qc.getQueryData<MeResponse>(['me'])
+      const slug = me?.workspaces.find((workspace) => String(workspace.id) === workspaceId)?.slug
+        ?? me?.workspaces[0]?.slug
+      localPublicationRef.current = publicationFromResponse(ed, slug)
       const gen = articleSourceToHtml(ed.bodySource ?? '').trim()
       const stor = (ed.bodyHtml ?? '').trim()
       setHtmlAdvancedOpen(stor.length > 0 && stor !== gen)
       setScheduledLocal(instantToDatetimeLocalValue(ed.scheduledPublishAt))
       setAiGeneratedOverride(null)
     }
-  }, [existing.data, form])
+  }, [existing.data, form, qc, workspaceId])
+
+  useEffect(() => {
+    if (localInitializedRef.current || (!isNew && existing.isLoading)) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const [local, folder] = await Promise.all([loadLocalPost(localKey), getPostFolder()])
+        if (cancelled) return
+        setFolderName(folder?.name ?? null)
+        if (local && (isNew || !existing.data || local.savedAt > existing.data.updatedAt)) {
+          localIdRef.current = local.localId
+          localLoadedRef.current = true
+          const p = local.payload
+          form.reset({
+            title: p.title, slug: p.slug, excerpt: p.excerpt, bodySource: p.bodySource,
+            bodyHtml: p.bodyHtml, visibility: p.visibility, status: p.status,
+            categoryId: p.categoryId,
+          })
+          setScheduledLocal(instantToDatetimeLocalValue(p.scheduledPublishAt))
+          setSocialPublish(p.socialPublishEnabled ?? false)
+          setMediaItems((local.media ?? p.mediaAssetIds.map((mediaId) => ({
+            serverId: mediaId, mimeType: null, fileName: '', originalName: null,
+          }))).map((media) => ({ ...media, id: media.serverId })))
+          if (existing.data) {
+            const me = qc.getQueryData<MeResponse>(['me'])
+            const slug = me?.workspaces.find((workspace) => String(workspace.id) === workspaceId)?.slug
+              ?? me?.workspaces[0]?.slug
+            localPublicationRef.current = publicationFromResponse(existing.data, slug)
+          } else {
+            localPublicationRef.current = local.publication
+          }
+          localPublishChannelsRef.current = p.publishChannels ?? null
+          if (channelsQ.data) {
+            setChannelOn(Object.fromEntries(channelsQ.data.filter((c) => c.enabled).map((c) => [
+              c.channelType, !p.publishChannels?.length || p.publishChannels.includes(c.channelType),
+            ])))
+          }
+          setHtmlAdvancedOpen(!!p.bodyHtml.trim() && p.bodyHtml.trim() !== articleSourceToHtml(p.bodySource).trim())
+          setLocalMessage('Восстановлена локальная версия материала.')
+        } else if (local) {
+          localIdRef.current = local.localId
+        }
+        localInitializedRef.current = true
+      } catch {
+        if (!cancelled) setLocalError('Локальная база недоступна. Проверьте настройки браузера.')
+      }
+    })()
+    return () => { cancelled = true }
+  }, [channelsQ.data, existing.data, existing.isLoading, form, isNew, localKey, qc, workspaceId])
 
   useEffect(() => {
     if (!channelsQ.data) {
       return
     }
     const enabled = channelsQ.data.filter((c) => c.enabled)
-    if (!isNew && existing.data) {
+    if (localLoadedRef.current) {
+      const selected = localPublishChannelsRef.current
+      setChannelOn(Object.fromEntries(enabled.map((c) => [
+        c.channelType, !selected?.length || selected.includes(c.channelType),
+      ])))
+      return
+    }
+    if (!isNew && existing.data && !localLoadedRef.current) {
       setSocialPublish(existing.data.socialPublishEnabled ?? true)
       const pub = existing.data.publishChannelTypes ?? []
       const o: Record<string, boolean> = {}
@@ -148,7 +241,7 @@ export function PostEditorPage() {
       setChannelOn(o)
       return
     }
-    if (isNew) {
+    if (isNew && !localLoadedRef.current) {
       setSocialPublish(true)
       const o: Record<string, boolean> = {}
       for (const c of enabled) {
@@ -167,9 +260,8 @@ export function PostEditorPage() {
     },
   })
 
-  const mutation = useMutation({
-    mutationFn: async (values: FormValues) => {
-      const orderedMedia = mediaItems.map((m) => m.id)
+  const buildPayload = useCallback((values: FormValues): PostPayload => {
+      const orderedMedia = mediaItems.map((m) => m.id).filter((mediaId): mediaId is number => mediaId !== null)
 
       let socialPublishEnabled = socialPublish
       let publishChannels: ChannelType[] | null = null
@@ -196,7 +288,7 @@ export function PostEditorPage() {
         htmlAdvancedOpen && manualHtml.length > 0 ? (values.bodyHtml ?? '') : autoHtml
 
       const scheduledIso = datetimeLocalToIso(scheduledLocal)
-      const payload: PostPayload = {
+      return {
         title: values.title,
         slug: values.slug?.trim() ?? '',
         excerpt: values.excerpt ?? '',
@@ -217,10 +309,78 @@ export function PostEditorPage() {
         publishChannels,
         scheduledPublishAt: scheduledIso,
       }
-      if (isNew) {
-        return createPost(payload)
+  }, [mediaItems, socialPublish, enabledWorkspaceChannels, channelOn, htmlAdvancedOpen,
+    scheduledLocal, aiGeneratedOverride, isNew, existing.data])
+
+  const persistLocal = useCallback((payload: PostPayload, rows = mediaItems): Promise<LocalPost> => {
+    const post: LocalPost = {
+      key: localKey, localId: localIdRef.current, serverId: isNew ? null : Number(id),
+      savedAt: new Date().toISOString(), payload,
+      media: rows.map(({ fileName, mimeType, serverId, originalName }) => ({
+        fileName, mimeType, serverId, originalName,
+      })),
+      publication: localPublicationRef.current,
+    }
+    const next = localSaveQueue.current.then(() => saveLocalPost(post))
+    localSaveQueue.current = next.catch(() => {})
+    return next.then(() => post)
+  }, [id, isNew, localKey, mediaItems])
+
+  useEffect(() => {
+    if (!localInitializedRef.current) return
+    const values = watchedValues as FormValues
+    if (!values.title?.trim() && !values.bodySource?.trim() && mediaItems.length === 0) return
+    const timer = window.setTimeout(() => {
+      void persistLocal(buildPayload(values)).then(() => {
+        setLocalError(null)
+        setLocalMessage('Локальная копия сохранена.')
+        if (id === 'new') navigate(`/app/posts/local-${localIdRef.current}`, { replace: true })
+      }).catch((error: unknown) => {
+        setLocalError(error instanceof Error ? error.message : 'Не удалось сохранить локальную копию.')
+      })
+    }, 900)
+    return () => window.clearTimeout(timer)
+  }, [watchedValues, buildPayload, persistLocal, mediaItems.length, id, navigate])
+
+  const mutation = useMutation({
+    mutationFn: async (values: FormValues) => {
+      let payload = buildPayload(values)
+      let local = await persistLocal(payload)
+      const uploadedRows = await Promise.all(mediaItems.map(async (row) => {
+        if (row.id !== null) return row
+        const stored = await readLocalMedia(localIdRef.current, row.fileName)
+        const file = new File([stored], row.originalName || stored.name, {
+          type: row.mimeType || stored.type,
+        })
+        const asset = await uploadMedia(file)
+        return { ...row, id: asset.id, serverId: asset.id, mimeType: asset.mimeType }
+      }))
+      if (uploadedRows.some((row, index) => row.id !== mediaItems[index].id)) {
+        setMediaItems(uploadedRows)
+        payload = { ...payload, mediaAssetIds: uploadedRows.map((row) => row.id).filter((mediaId): mediaId is number => mediaId !== null) }
+        local = await persistLocal(payload, uploadedRows)
       }
-      return updatePost(Number(id), payload)
+      const post = isNew ? await createPost(payload) : await updatePost(Number(id), payload)
+      const me = qc.getQueryData<MeResponse>(['me'])
+      const slug = me?.workspaces.find((workspace) => String(workspace.id) === workspaceId)?.slug
+        ?? me?.workspaces[0]?.slug
+      localPublicationRef.current = publicationFromResponse(post, slug)
+      if (isNew) {
+        try {
+          await bindServerId(local, post.id)
+          await saveLocalPost({ ...local, key: localPostKey(workspaceId, post.id), serverId: post.id,
+            publication: localPublicationRef.current })
+        } catch {
+          setLocalError('Пост отправлен на сервер, но связь с локальной копией не обновилась.')
+        }
+      } else {
+        try {
+          await saveLocalPost({ ...local, publication: localPublicationRef.current })
+        } catch {
+          setLocalError('Пост отправлен на сервер, но параметры локальной публикации не обновились.')
+        }
+      }
+      return post
     },
     onSuccess: async (post) => {
       setAiGeneratedOverride(null)
@@ -290,8 +450,47 @@ export function PostEditorPage() {
           onSubmit={form.handleSubmit((v) => mutation.mutate(v))}
         >
           {mutation.isError ? (
-            <p className="text-sm text-red-600">Не удалось сохранить. Проверьте данные.</p>
+            <p className="text-sm text-red-600">
+              {mutation.error instanceof Error ? mutation.error.message : 'Не удалось сохранить материал.'}
+            </p>
           ) : null}
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4 text-sm">
+            <p className="font-medium">Локальный исходник</p>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              Выберите место для папки publisher. Текст, параметры публикации и вложения сохраняются в ней. При отсутствии сети медиа
+              остаются локально и будут отправлены на сервер при следующем сохранении материала.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm hover:border-[var(--accent)]"
+                onClick={() => {
+                  void choosePostFolder().then((name) => {
+                    setFolderName(name)
+                    setLocalError(null)
+                    const values = form.getValues()
+                    if (values.title.trim() || (values.bodySource ?? '').trim()) {
+                      return persistLocal(buildPayload(values)).then(() => setLocalMessage('Локальная копия сохранена.'))
+                    }
+                  }).catch((error: unknown) => {
+                    if (error instanceof DOMException && error.name === 'AbortError') return
+                    setLocalError(error instanceof Error ? error.message : 'Не удалось выбрать папку.')
+                  })
+                }}
+                disabled={!folderPickerAvailable()}
+              >
+                Выбрать папку
+              </button>
+              <span className="text-xs text-[var(--muted)]">
+                {folderName ? `Папка: ${folderName}/publisher` : 'Папка не выбрана'}
+              </span>
+            </div>
+            {!folderPickerAvailable() ? (
+              <p className="mt-2 text-xs text-amber-700">Браузер не поддерживает выбор папки для записи.</p>
+            ) : null}
+            {localMessage ? <p className="mt-2 text-xs text-emerald-700" role="status">{localMessage}</p> : null}
+            {localError ? <p className="mt-2 text-xs text-red-600" role="alert">{localError}</p> : null}
+          </div>
           {!isNew && existing.data?.channelSyndicationBlocked ? (
             <div
               className="rounded-lg border border-amber-500/50 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-500/30 dark:bg-amber-950/40 dark:text-amber-100"
@@ -442,7 +641,7 @@ export function PostEditorPage() {
           <div className="space-y-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
             <p className="text-sm font-medium">Медиа к материалу</p>
             <p className="text-xs text-[var(--muted)]">
-              Загрузите файлы с компьютера — они сохраняются вместе с материалом при нажатии «Сохранить». Порядок в
+              Выберите файлы с компьютера — сначала они сохраняются в папке материала. Порядок в
               списке — как в публикации (сверху вниз). Для Telegram в канал уходят изображения из этого списка
               (после текста поста).
             </p>
@@ -461,17 +660,21 @@ export function PostEditorPage() {
                   setUploadErr(null)
                   setUploadBusy(true)
                   try {
-                    const next: MediaRow[] = []
                     for (let i = 0; i < list.length; i++) {
                       const f = list[i]
-                      const asset = await uploadMedia(f)
-                      next.push({ id: asset.id, mimeType: asset.mimeType })
+                      const localMedia = await saveSelectedMedia(localIdRef.current, f)
+                      let row: MediaRow = { ...localMedia, id: null }
+                      setMediaItems((prev) => [...prev, row])
+                      try {
+                        const asset = await uploadMedia(f)
+                        row = { ...row, id: asset.id, serverId: asset.id, mimeType: asset.mimeType }
+                        setMediaItems((prev) => prev.map((item) => item.fileName === row.fileName ? row : item))
+                      } catch {
+                        setUploadErr('Файл сохранён локально. Загрузка на сервер повторится при сохранении материала.')
+                      }
                     }
-                    setMediaItems((prev) => [...prev, ...next])
                   } catch {
-                    setUploadErr(
-                      'Не удалось загрузить файл. Проверьте размер и формат, затем попробуйте снова.',
-                    )
+                    setUploadErr('Не удалось сохранить файл в локальной папке. Выберите папку и повторите попытку.')
                   } finally {
                     setUploadBusy(false)
                     e.target.value = ''
@@ -495,11 +698,15 @@ export function PostEditorPage() {
             ) : (
               <ul className="max-h-96 space-y-3 overflow-y-auto">
                 {mediaItems.map((m, idx) => (
-                  <li key={m.id}>
+                  <li key={m.fileName || m.id}>
                     <div className="flex gap-3 rounded-lg border border-[var(--border)] p-2">
-                      <AuthenticatedMediaThumb mediaId={m.id} mimeType={m.mimeType} />
+                      {m.fileName ? (
+                        <LocalMediaThumb localId={localIdRef.current} fileName={m.fileName} mimeType={m.mimeType} />
+                      ) : m.id !== null ? (
+                        <AuthenticatedMediaThumb mediaId={m.id} mimeType={m.mimeType} />
+                      ) : null}
                       <div className="min-w-0 flex-1 text-sm">
-                        <span className="font-mono text-xs text-[var(--muted)]">#{m.id}</span>
+                        <span className="font-mono text-xs text-[var(--muted)]">{m.id ? `#${m.id}` : 'локально'}</span>
                         <p className="truncate text-[var(--text)]">{m.mimeType ?? 'файл'}</p>
                       </div>
                       <div className="flex shrink-0 flex-col gap-1">
@@ -701,7 +908,7 @@ export function PostEditorPage() {
           <div className="flex gap-3">
             <button
               type="submit"
-              disabled={mutation.isPending}
+              disabled={mutation.isPending || uploadBusy}
               className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] disabled:opacity-60"
             >
               {mutation.isPending ? 'Сохранение…' : 'Сохранить'}

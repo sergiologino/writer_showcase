@@ -8,6 +8,7 @@ import java.time.Instant;
 public record PostOutboundInfoDto(
         ChannelType channelType,
         ChannelDeliveryStatus deliveryStatus,
+        Instant sentAt,
         String externalUrl,
         String lastError,
         Instant metricsFetchedAt,
@@ -21,6 +22,7 @@ public record PostOutboundInfoDto(
         return new PostOutboundInfoDto(
                 channelType,
                 ChannelDeliveryStatus.PENDING,
+                null,
                 null,
                 null,
                 null,

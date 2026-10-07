@@ -146,9 +146,8 @@ export function PublishingChannelsPage() {
           Здесь настраивается автоматическая отправка материалов в соцсети при публикации поста (статус «Опубликован» и
           публичная видимость). Поля ниже — всё, что нужно ввести; технический JSON собирается сам. Секреты (токены),
           которые уже сохранены, можно не вводить повторно — оставьте поле пустым. Посты в{' '}
-          <strong>Telegram</strong>, <strong>Facebook</strong> и <strong>X</strong> уходят через сервис{' '}
-          <strong>noteapp-ai-integration</strong> (те же <code className="rounded bg-[var(--bg)] px-1">AI_INTEGRATION_*</code>, что
-          и для нейросетей); Telegram-изображения отправляются через него же.
+          <strong>Telegram</strong>, <strong>Facebook</strong> и <strong>X</strong> отправляются через специальный
+          промежуточный сервис для гарантированной доставки.
         </p>
         <p className="mt-2 text-sm">
           <Link className="text-[var(--accent)] hover:underline" to="/app/profile">
@@ -429,10 +428,32 @@ export function PublishingChannelsPage() {
       {/* Facebook */}
       <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Facebook (страница)</h2>
-        <p className="mt-2 text-sm text-[var(--muted)]">
-          Публикация идёт через <strong>noteapp-ai-integration</strong> (Graph API на стороне интеграции). Нужны page access
-          token с правом публикации на стене и числовой id страницы.
-        </p>
+        <details className="mt-3 text-sm text-[var(--muted)]">
+          <summary className="cursor-pointer font-medium text-[var(--text)]">Как подключить (пошагово)</summary>
+          <ol className="mt-3 list-decimal space-y-2 pl-5">
+            <li>Создайте страницу Facebook или откройте существующую, которой можете управлять и публиковать записи.</li>
+            <li>
+              Создайте приложение в кабинете{' '}
+              <a className="text-[var(--accent)] hover:underline" href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer">
+                Meta for Developers
+              </a>
+              . В{' '}
+              <a className="text-[var(--accent)] hover:underline" href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noreferrer">
+                Graph API Explorer
+              </a>{' '}
+              выберите его и получите токен пользователя с правами{' '}
+              <code className="rounded bg-[var(--bg)] px-1">pages_show_list</code>,{' '}
+              <code className="rounded bg-[var(--bg)] px-1">pages_read_engagement</code> и{' '}
+              <code className="rounded bg-[var(--bg)] px-1">pages_manage_posts</code>.
+            </li>
+            <li>
+              Запросите <code className="rounded bg-[var(--bg)] px-1">/me/accounts</code> в Graph API Explorer. В ответе
+              найдите нужную страницу: её <strong>id</strong> вставьте в поле «ID страницы», а её{' '}
+              <strong>access_token</strong> (токен страницы, не пользователя) — в поле «Access token (страницы)».
+            </li>
+            <li>Включите канал и сохраните настройки. Если токен истечёт или будет отозван, получите новый токен страницы.</li>
+          </ol>
+        </details>
         <div className="mt-4 space-y-3">
           <label className="flex cursor-pointer items-center gap-2 text-sm">
             <input type="checkbox" checked={fbEnabled} onChange={(e) => setFbEnabled(e.target.checked)} />
@@ -489,10 +510,33 @@ export function PublishingChannelsPage() {
       {/* X (Twitter) */}
       <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm">
         <h2 className="text-lg font-semibold">X (Twitter)</h2>
-        <p className="mt-2 text-sm text-[var(--muted)]">
-          Публикация через <strong>noteapp-ai-integration</strong> (Twitter API v2, заголовок Bearer). Токен с правом
-          <code className="mx-1 rounded bg-[var(--bg)] px-1">tweets.write</code> (или аналог для вашего типа приложения).
-        </p>
+        <details className="mt-3 text-sm text-[var(--muted)]">
+          <summary className="cursor-pointer font-medium text-[var(--text)]">Как подключить (пошагово)</summary>
+          <ol className="mt-3 list-decimal space-y-2 pl-5">
+            <li>
+              В{' '}
+              <a className="text-[var(--accent)] hover:underline" href="https://developer.x.com/en/portal/dashboard" target="_blank" rel="noreferrer">
+                кабинете разработчика X
+              </a>{' '}
+              создайте проект и приложение с доступом к API публикации записей.
+            </li>
+            <li>
+              Настройте OAuth 2.0 с доступом на чтение и запись. Авторизуйте аккаунт, от имени которого будут идти
+              посты, с правами <code className="rounded bg-[var(--bg)] px-1">tweet.read</code>,{' '}
+              <code className="rounded bg-[var(--bg)] px-1">users.read</code> и{' '}
+              <code className="rounded bg-[var(--bg)] px-1">tweet.write</code>. Подробнее — в{' '}
+              <a className="text-[var(--accent)] hover:underline" href="https://docs.x.com/x-api/posts/manage-tweets/introduction" target="_blank" rel="noreferrer">
+                документации X
+              </a>
+              .
+            </li>
+            <li>
+              Скопируйте <strong>токен доступа пользователя</strong> OAuth 2.0 в поле «Bearer token (OAuth 2.0)».
+              Токен приложения без авторизации пользователя для публикации не подходит.
+            </li>
+            <li>Включите канал и сохраните настройки. После истечения срока действия токена обновите его здесь.</li>
+          </ol>
+        </details>
         <div className="mt-4 space-y-3">
           <label className="flex cursor-pointer items-center gap-2 text-sm">
             <input type="checkbox" checked={xEnabled} onChange={(e) => setXEnabled(e.target.checked)} />

@@ -49,9 +49,13 @@ export function AiAdminSection() {
 
       {netsQ.isLoading ? (
         <p className="mt-3 text-sm text-[var(--muted)]">Загрузка списка сетей…</p>
-      ) : netsQ.isError || !netsQ.data?.length ? (
+      ) : netsQ.isError ? (
         <p className="mt-3 text-sm text-amber-700 dark:text-amber-400">
-          Список доступных сетей пуст или недоступен. Проверьте подключение интеграции на backend.
+          {netsQ.error instanceof ApiError ? netsQ.error.message : 'Не удалось загрузить список сетей.'}
+        </p>
+      ) : !netsQ.data?.length ? (
+        <p className="mt-3 text-sm text-amber-700 dark:text-amber-400">
+          Для Publisher пока нет доступных нейросетей.
         </p>
       ) : null}
       {err ? (

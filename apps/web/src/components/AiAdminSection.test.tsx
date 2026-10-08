@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchAiRouting, fetchAvailableNetworks, saveAiRouting } from '../api/aiAdmin'
+import { ApiError } from '../api/client'
 import { AiAdminSection } from './AiAdminSection'
 
 vi.mock('../api/aiAdmin', () => ({
@@ -50,5 +51,12 @@ describe('AiAdminSection', () => {
     await waitFor(() => expect(saveAiRouting).toHaveBeenCalledWith(expect.objectContaining({ chat: ['old-network'] })))
     fireEvent.click(screen.getByRole('button', { name: 'Убрать old-network из chat' }))
     expect(screen.getAllByText('Автовыбор интеграции')).toHaveLength(5)
+  })
+
+  it('shows the upstream error instead of treating it as an empty list', async () => {
+    vi.mocked(fetchAvailableNetworks).mockRejectedValue(new ApiError(502, 'Сервис нейросетей ответил HTTP 502'))
+    renderSection()
+    expect(await screen.findByText('Сервис нейросетей ответил HTTP 502')).toBeInTheDocument()
+    expect(screen.queryByText('Для Publisher пока нет доступных нейросетей.')).not.toBeInTheDocument()
   })
 })

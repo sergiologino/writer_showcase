@@ -10,8 +10,8 @@
 
 | Переменная | Назначение | По умолчанию / примечание |
 |------------|------------|----------------------------|
-| `AI_INTEGRATION_BASE_URL` | Базовый URL сервиса (без завершающего `/`) | Пусто — интеграция **не** настроена (`NOT_CONFIGURED`, список сетей = `[]`). Имеет приоритет над `AI_INTEGRATION_URL`, если заданы оба. |
-| `AI_INTEGRATION_URL` | То же, что базовый URL (как в других ваших сервисах) | Пример прод: `https://sergiologino-zettelkastenapp-ai-integration-bce3.twc1.net` |
+| `AI_INTEGRATION_BASE_URL` | Базовый URL сервиса (без завершающего `/`) | Пусто — интеграция **не** настроена (`NOT_CONFIGURED` для обработки запросов, `503` при запросе списка сетей). Имеет приоритет над `AI_INTEGRATION_URL`, если заданы оба. |
+| `AI_INTEGRATION_URL` | То же, что базовый URL (как в других ваших сервисах) | Текущий production URL: `https://aintegration.altacod.com` |
 | `AI_INTEGRATION_API_KEY` | Секретный ключ клиента (как выдаёт интеграция) | Обязателен вместе с URL для рабочих вызовов. |
 | `AI_INTEGRATION_API_KEY_HEADER` | Имя заголовка с ключом | `X-API-Key` |
 | `AI_INTEGRATION_PROCESS_PATH` | Путь метода обработки | `/api/ai/process` |
@@ -52,6 +52,7 @@
 - `POST /api/ai/invoke` — вызов по `promptKey` (нужен `X-Workspace-Id`).
 - `POST /api/ai/studio/invoke` — произвольное тело `StudioAiRequest` (нужен workspace; ИИ-студия в редакторе поста).
 - `GET /api/ai/admin/available-networks`, `GET/PUT /api/ai/admin/routing` — **только `ROLE_ADMIN`**; workspace для этих путей обязателен так же, как для остального API (заголовок `X-Workspace-Id`).
+- Если внешний список сетей не загрузился, Publisher возвращает `502` с кодом ответа внешнего сервиса (или `503` при отсутствии конфигурации); админский экран показывает ошибку отдельно от успешного пустого списка.
 
 ## Быстрая проверка
 

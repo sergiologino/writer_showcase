@@ -6,11 +6,15 @@ import io.altacod.publisher.api.dto.AiInvokeResponse;
 import io.altacod.publisher.config.IntegrationAiProperties;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 
@@ -20,6 +24,8 @@ import java.time.Duration;
  */
 @Component
 public class HttpIntegrationAiClient implements IntegrationAiClient {
+
+    private static final Logger log = LoggerFactory.getLogger(HttpIntegrationAiClient.class);
 
     private final IntegrationAiProperties props;
     private final ObjectMapper objectMapper;
@@ -32,7 +38,8 @@ public class HttpIntegrationAiClient implements IntegrationAiClient {
     @Override
     public String fetchAvailableNetworksJson() {
         if (!props.isConfigured()) {
-            return "[]";
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Сервис нейросетей не настроен в Publisher");
         }
         SimpleClientHttpRequestFactory rf = new SimpleClientHttpRequestFactory();
         rf.setConnectTimeout(Duration.ofMillis(props.getConnectTimeoutMs()));
@@ -46,12 +53,24 @@ public class HttpIntegrationAiClient implements IntegrationAiClient {
                 ? props.getAvailableNetworksPath()
                 : "/" + props.getAvailableNetworksPath();
         try {
-            return client.get()
+            String body = client.get()
                     .uri(path)
                     .retrieve()
                     .body(String.class);
+            if (body == null || body.isBlank()) {
+                log.warn("Available networks endpoint returned an empty response");
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                        "Сервис нейросетей вернул пустой ответ");
+            }
+            return body;
+        } catch (RestClientResponseException e) {
+            log.warn("Available networks endpoint returned HTTP {}", e.getStatusCode().value());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "Сервис нейросетей ответил HTTP " + e.getStatusCode().value(), e);
         } catch (RestClientException e) {
-            return "[]";
+            log.warn("Available networks request failed: {}", e.toString());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "Не удалось связаться с сервисом нейросетей", e);
         }
     }
 

@@ -51,6 +51,7 @@
 - `GET/PUT /api/ai/prompts/...` — шаблоны по workspace.
 - `POST /api/ai/invoke` — вызов по `promptKey` (нужен `X-Workspace-Id`).
 - `POST /api/ai/studio/invoke` — произвольное тело `StudioAiRequest` (нужен workspace; ИИ-студия в редакторе поста).
+- В ответе студии для `image_generation` и `image_edit` Publisher возвращает `imageDataUrl`. Временный HTTPS URL провайдера backend скачивает сразу (до 20 МБ), чтобы редактор мог сохранить файл в локальную папку материала до загрузки в `/api/media`. Референс передаётся как `imageBase64` и требует доступной сети `networkType=image_edit`; при её отсутствии пользователь получает ошибку, а исходный пост остаётся без изменений.
 - `GET /api/ai/admin/available-networks`, `GET/PUT /api/ai/admin/routing` — **только `ROLE_ADMIN`**; workspace для этих путей обязателен так же, как для остального API (заголовок `X-Workspace-Id`).
 - Если внешний список сетей не загрузился, Publisher возвращает `502` с кодом ответа внешнего сервиса (или `503` при отсутствии конфигурации); админский экран показывает ошибку отдельно от успешного пустого списка.
 

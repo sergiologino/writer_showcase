@@ -95,7 +95,7 @@ public class HttpIntegrationAiClient implements IntegrationAiClient {
                     .body(objectMapper.writeValueAsString(request))
                     .retrieve()
                     .body(String.class);
-            return mapAiServiceResponse(body);
+            return mapAiServiceResponse(body, request.requestType());
         } catch (RestClientResponseException ex) {
             String errBody = ex.getResponseBodyAsString();
             return AiInvokeResponse.ofFailure(errBody, "HTTP_" + ex.getStatusCode().value());
@@ -106,7 +106,7 @@ public class HttpIntegrationAiClient implements IntegrationAiClient {
         }
     }
 
-    private AiInvokeResponse mapAiServiceResponse(String body) {
+    private AiInvokeResponse mapAiServiceResponse(String body, String requestType) {
         try {
             JsonNode root = objectMapper.readTree(body);
             String status = root.path("status").asText("");
@@ -116,9 +116,21 @@ public class HttpIntegrationAiClient implements IntegrationAiClient {
                 String code = err.isEmpty() ? status : err;
                 return AiInvokeResponse.ofFailure(body, code);
             }
+            if ("image_generation".equalsIgnoreCase(requestType) || "image_edit".equalsIgnoreCase(requestType)) {
+                JsonNode imageResponse = root.path("response");
+                if (imageResponse.isTextual()) imageResponse = objectMapper.readTree(imageResponse.asText());
+                String image = AiIntegrationImageExtractor.extract(imageResponse);
+                if (image == null) return AiInvokeResponse.ofFailure(null, "IMAGE_NOT_RETURNED");
+                Integer tokens = root.path("tokensUsed").isNumber() ? root.path("tokensUsed").asInt() : null;
+                return AiInvokeResponse.ofSuccess("Изображение готово", tokens, null, image);
+            }
             AiIntegrationTextExtractor.Parsed p = AiIntegrationTextExtractor.parseSuccessBody(body, objectMapper);
             return AiInvokeResponse.ofSuccess(p.displayText(), p.tokensUsed(), null);
         } catch (Exception e) {
+            log.warn("Could not read AI response: {}", e.toString());
+            if ("image_generation".equalsIgnoreCase(requestType) || "image_edit".equalsIgnoreCase(requestType)) {
+                return AiInvokeResponse.ofFailure(null, "INVALID_AI_IMAGE");
+            }
             return AiInvokeResponse.ofSuccess(body == null ? "" : body.trim(), null, null);
         }
     }

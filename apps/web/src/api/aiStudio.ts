@@ -8,6 +8,8 @@ export interface AiInvokeResponse {
   tokensUsed: number | null
   /** Сумма по статье после вызова, если в запросе был postId */
   postTokensTotal: number | null
+  /** Data URL готового изображения, если запрашивалась генерация или правка. */
+  imageDataUrl?: string | null
 }
 
 export interface StudioAiRequest {

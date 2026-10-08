@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react'
 import { fetchAiRouting, fetchAvailableNetworks, saveAiRouting } from '../api/aiAdmin'
 import { ApiError } from '../api/client'
 
-const REQUEST_TYPES = ['chat', 'image_generation', 'video_generation', 'transcription', 'speech_synthesis'] as const
+const REQUEST_TYPES = ['chat', 'image_generation', 'image_edit', 'video_generation', 'transcription', 'speech_synthesis'] as const
 const REQUEST_TYPE_LABELS: Record<(typeof REQUEST_TYPES)[number], string> = {
   chat: 'Текст и чат',
   image_generation: 'Генерация изображений',
+  image_edit: 'Редактирование изображения по референсу',
   video_generation: 'Генерация видео',
   transcription: 'Распознавание речи',
   speech_synthesis: 'Синтез речи',

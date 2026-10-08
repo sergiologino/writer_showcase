@@ -1,10 +1,30 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useId, useState } from 'react'
 import { studioInvoke, type StudioAiRequest } from '../api/aiStudio'
-import { ApiError } from '../api/client'
 import { extractAssistantText } from '../lib/aiOutputParse'
 
-type StudioMode = 'text' | 'split' | 'image' | 'video'
+export type StudioMode = 'text' | 'split' | 'image' | 'video'
+
+const DEFAULT_PROMPTS: Record<StudioMode, string> = {
+  text: 'Улучши текст для публикации: исправь ошибки, сделай его яснее и живее, сохрани смысл и авторский голос. Не добавляй непроверенных фактов. Верни только готовый текст в Markdown.',
+  split: 'Разбей материал на несколько самостоятельных постов. Для каждого предложи короткий заголовок и готовый текст.',
+  image: 'Создай выразительную иллюстрацию к материалу в современном редакционном стиле. Без надписей, водяных знаков и логотипов.',
+  video: 'Создай короткое видео по главной идее материала. Без надписей и логотипов.',
+}
+
+const MODE_HELP: Record<StudioMode, string> = {
+  text: 'Помощник использует уже написанный текст. Измените пожелание, если нужен другой тон или объём.',
+  split: 'На выходе получится список фрагментов. Отдельные черновики автоматически не создаются.',
+  image: 'Можно создать новую иллюстрацию или приложить изображение и описать, что в нём изменить.',
+  video: 'Опишите сцену и действие, которые хотите увидеть в ролике.',
+}
+
+const MODE_EXAMPLES: Record<StudioMode, string> = {
+  text: 'Например: «Сократи до трёх абзацев и сохрани дружелюбный тон».',
+  split: 'Например: «Сделай три поста: проблема, решение и личный опыт».',
+  image: 'Например: «Акварельная иллюстрация городского сада весной, без надписей».',
+  video: 'Например: «Короткий спокойный пролёт камеры над садом на закате».',
+}
 
 type Iter = {
   id: string
@@ -15,6 +35,7 @@ type Iter = {
   ok: boolean | null
   tokensUsed: number | null
   postTotal: number | null
+  imageDataUrl: string | null
 }
 
 function newIter(
@@ -23,7 +44,8 @@ function newIter(
   output: string,
   ok: boolean | null,
   tokensUsed: number | null,
-  postTotal: number | null
+  postTotal: number | null,
+  imageDataUrl: string | null
 ): Iter {
   return {
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -34,12 +56,13 @@ function newIter(
     ok,
     tokensUsed,
     postTotal,
+    imageDataUrl,
   }
 }
 
 const MODES: { id: StudioMode; label: string; requestType: string }[] = [
   { id: 'text', label: 'Текст', requestType: 'chat' },
-  { id: 'split', label: 'Части (2.2)', requestType: 'chat' },
+  { id: 'split', label: 'Разбить на посты', requestType: 'chat' },
   { id: 'image', label: 'Иллюстрация', requestType: 'image_generation' },
   { id: 'video', label: 'Видео', requestType: 'video_generation' },
 ]
@@ -48,7 +71,8 @@ function buildPayload(
   mode: StudioMode,
   original: string,
   userPrompt: string,
-  refDataUrl: string | null
+  refDataUrl: string | null,
+  referenceAction: string
 ): Record<string, unknown> {
   if (mode === 'split') {
     const system =
@@ -61,20 +85,27 @@ function buildPayload(
           role: 'user',
           content:
             (original ? `Исходный текст:\n\n${original}\n\n---\n\n` : '') +
-            (userPrompt.trim() || 'Разбей на части:'),
+            (userPrompt.trim() || DEFAULT_PROMPTS.split),
         },
       ],
     }
   }
   if (mode === 'image' || mode === 'video') {
     const p: Record<string, unknown> = {
-      prompt: userPrompt.trim() || (mode === 'image' ? 'Иллюстрация к статье' : 'Короткое видео по описанию'),
+      prompt: (userPrompt.trim() || DEFAULT_PROMPTS[mode])
+        + (original.trim() ? `\n\nСодержание материала для контекста: ${original.trim().slice(0, 1800)}` : '')
+        + (refDataUrl && referenceAction.trim() ? `\n\nЧто сделать с референсом: ${referenceAction.trim()}` : ''),
     }
     if (original.trim()) {
       p.context = original.slice(0, 8000)
     }
     if (refDataUrl) {
-      p.referenceDataUrl = refDataUrl
+      if (mode === 'image') {
+        p.imageBase64 = refDataUrl
+        p.imageContentType = /^data:([^;]+);/.exec(refDataUrl)?.[1] ?? 'image/jpeg'
+      } else {
+        p.referenceDataUrl = refDataUrl
+      }
     }
     return p
   }
@@ -84,7 +115,7 @@ function buildPayload(
         role: 'user',
         content:
           (original ? `Оригинал статьи (Markdown):\n\n${original}\n\n---\n\n` : '') +
-          (userPrompt.trim() || 'Ответь по контексту выше.'),
+          (userPrompt.trim() || DEFAULT_PROMPTS.text),
       },
     ],
   }
@@ -96,6 +127,10 @@ export interface AiStudioModalProps {
   /** Текст статьи (Markdown) как контекст. */
   originalBody: string
   onApplyToArticle: (markdown: string) => void
+  onApplyImage?: (file: File) => Promise<void>
+  canStoreImage?: boolean
+  onChooseImageFolder?: () => Promise<void>
+  initialMode?: StudioMode
   /** Сохранённый пост — для накопительного учёта токенов; у черновика без id нет. */
   postId?: number | null
   /** Сумма токенов по статье до текущей сессии (из API). */
@@ -107,21 +142,39 @@ export function AiStudioModal({
   onClose,
   originalBody,
   onApplyToArticle,
+  onApplyImage,
+  canStoreImage = true,
+  onChooseImageFolder,
+  initialMode = 'text',
   postId = null,
   articleTokensTotal = 0,
 }: AiStudioModalProps) {
   const qc = useQueryClient()
   const titleId = useId()
-  const [mode, setMode] = useState<StudioMode>('text')
-  const [prompt, setPrompt] = useState('')
+  const [mode, setMode] = useState<StudioMode>(initialMode)
+  const [prompts, setPrompts] = useState(DEFAULT_PROMPTS)
+  const prompt = prompts[mode]
   const [refFile, setRefFile] = useState<string | null>(null)
+  const [refName, setRefName] = useState<string | null>(null)
+  const [referenceAction, setReferenceAction] = useState('')
   const [pending, setPending] = useState(false)
+  const [applyPending, setApplyPending] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [lastRaw, setLastRaw] = useState<string | null>(null)
   const [iters, setIters] = useState<Iter[]>([])
   const [activeIdx, setActiveIdx] = useState(0)
 
   const active = iters[activeIdx] ?? null
+
+  useEffect(() => {
+    if (open) {
+      setMode(initialMode)
+      setIters([])
+      setRefFile(null)
+      setRefName(null)
+      setReferenceAction('')
+    }
+  }, [open, initialMode])
 
   useEffect(() => {
     if (!open) {
@@ -141,14 +194,22 @@ export function AiStudioModal({
     setLastRaw(null)
     try {
       const body: StudioAiRequest = {
-        requestType: meta.requestType,
-        payload: buildPayload(mode, originalBody, prompt, refFile),
+        requestType: mode === 'image' && refFile ? 'image_edit' : meta.requestType,
+        payload: buildPayload(mode, originalBody, prompt, refFile, referenceAction),
         metadata: { 'publisher.studio.mode': mode },
         externalUserId: null,
         networkName: null,
         postId: postId ?? undefined,
       }
       const res = await studioInvoke(body)
+      if (!res.ok) {
+        throw new Error(res.errorCode?.includes('No available network')
+          ? 'Для работы с референсом администратор должен подключить нейросеть для редактирования изображений.'
+          : res.errorCode || 'Нейросеть не смогла выполнить запрос.')
+      }
+      if (mode === 'image' && !res.imageDataUrl) {
+        throw new Error('Нейросеть не вернула изображение. Попробуйте другой запрос или сеть.')
+      }
       setLastRaw(res.output)
       const text = res.output != null && res.output.trim() !== '' ? extractAssistantText(res.output) : ''
       if (postId) {
@@ -156,14 +217,37 @@ export function AiStudioModal({
       }
       setIters((prev) => [
         ...prev,
-        newIter(mode, prompt, text, res.ok, res.tokensUsed ?? null, res.postTokensTotal ?? null),
+        newIter(mode, prompt, text, res.ok, res.tokensUsed ?? null, res.postTokensTotal ?? null,
+          res.imageDataUrl ?? null),
       ])
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Запрос не удался')
+      setErr(e instanceof Error ? e.message : 'Запрос не удался')
     } finally {
       setPending(false)
     }
-  }, [mode, originalBody, prompt, postId, refFile, qc])
+  }, [mode, originalBody, prompt, postId, refFile, referenceAction, qc])
+
+  const applyResult = useCallback(async () => {
+    if (!active || !active.ok) return
+    if (active.mode !== 'image') {
+      onApplyToArticle(active.output)
+      onClose()
+      return
+    }
+    if (!active.imageDataUrl || !onApplyImage) return
+    setApplyPending(true)
+    setErr(null)
+    try {
+      const blob = await (await fetch(active.imageDataUrl)).blob()
+      const extension = blob.type === 'image/jpeg' ? 'jpg' : blob.type === 'image/webp' ? 'webp' : 'png'
+      await onApplyImage(new File([blob], `publisher-ai-${Date.now()}.${extension}`, { type: blob.type }))
+      onClose()
+    } catch (error) {
+      setErr(error instanceof Error ? error.message : 'Не удалось добавить изображение в пост.')
+    } finally {
+      setApplyPending(false)
+    }
+  }, [active, onApplyImage, onApplyToArticle, onClose])
 
   useEffect(() => {
     if (iters.length === 0) {
@@ -189,10 +273,6 @@ export function AiStudioModal({
             <h2 id={titleId} className="text-lg font-semibold">
               AI-студия
             </h2>
-            <p className="text-xs text-[var(--muted)]">
-              Запросы идут в noteapp-ai-integration с маршрутом приоритетов; ответы можно вставить в статью (текст) или
-              скопировать.
-            </p>
             {postId ? (
               <p className="mt-1 text-xs text-[var(--muted)]">
                 Токены по статье (накопительно):{' '}
@@ -233,52 +313,90 @@ export function AiStudioModal({
 
           <div className="grid min-h-[12rem] flex-1 grid-cols-1 gap-3 md:grid-cols-2">
             <div className="flex min-h-0 min-w-0 flex-col space-y-2">
-              <p className="shrink-0 text-sm font-medium">Оригинал (контекст)</p>
+              <p className="shrink-0 text-sm font-medium">1. Текст материала</p>
+              <p className="text-xs text-[var(--muted)]">Текущий текст уже передан помощнику как контекст.</p>
               <textarea
                 readOnly
                 className="min-h-[6rem] w-full min-w-0 flex-1 resize-y rounded-lg border border-[var(--border)] bg-[var(--bg)] p-2 font-mono text-xs leading-relaxed text-[var(--text)]"
-                value={originalBody.trim() || '— пусто —'}
+                value={originalBody}
                 rows={8}
                 aria-label="Контекст статьи"
+                placeholder="Пока нет текста. Можно сначала написать его в редакторе или описать задачу справа."
               />
             </div>
             <div className="flex min-h-0 min-w-0 flex-col space-y-2">
               <label className="flex min-h-0 min-w-0 flex-1 flex-col text-sm font-medium">
-                <span className="shrink-0">Промпт</span>
+                <span className="shrink-0">2. Что сделать</span>
                 <textarea
                   className="mt-1 min-h-[6rem] w-full min-w-0 flex-1 resize-y rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm"
                   value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="Что сделать с текстом, какая иллюстрация, сценарий видео…"
+                  onChange={(e) => setPrompts((prev) => ({ ...prev, [mode]: e.target.value }))}
+                  placeholder={DEFAULT_PROMPTS[mode]}
                 />
               </label>
+              <p className="text-xs text-[var(--muted)]">{MODE_HELP[mode]}</p>
+              <p className="text-xs text-[var(--muted)]">{MODE_EXAMPLES[mode]}</p>
+              {mode === 'image' && !canStoreImage ? (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-50 p-3 text-xs text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
+                  <p>Сначала выберите папку материала: готовое изображение сохранится в ней до отправки на сервер.</p>
+                  {onChooseImageFolder ? (
+                    <button type="button" className="mt-2 rounded border border-current px-2 py-1"
+                      onClick={() => void onChooseImageFolder().catch((error: unknown) =>
+                        setErr(error instanceof Error ? error.message : 'Не удалось выбрать папку.'))}>
+                      Выбрать папку
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
               {(mode === 'image' || mode === 'video') && (
                 <label className="block text-xs text-[var(--muted)]">
-                  Референс (опционально)
+                  Изображение-референс (необязательно)
                   <input
                     type="file"
-                    accept="image/*,video/*"
+                    accept="image/png,image/jpeg,image/webp"
                     className="mt-1 block w-full text-sm"
                     onChange={(e) => {
                       const f = e.target.files?.[0]
                       if (!f) {
                         setRefFile(null)
+                        setRefName(null)
                         return
                       }
                       const r = new FileReader()
-                      r.onload = () => setRefFile(typeof r.result === 'string' ? r.result : null)
+                      r.onload = () => {
+                        setRefFile(typeof r.result === 'string' ? r.result : null)
+                        setRefName(f.name)
+                      }
                       r.readAsDataURL(f)
                     }}
                   />
                 </label>
               )}
+              {mode === 'image' && refFile ? (
+                <div className="space-y-2">
+                  <img src={refFile} alt="Выбранный референс" className="max-h-28 rounded-lg border border-[var(--border)] object-contain" />
+                  <p className="text-xs text-[var(--muted)]">{refName} · требуется нейросеть для редактирования изображений</p>
+                  <label className="block text-sm font-medium">
+                    Что сделать с референсом
+                    <input
+                      className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm"
+                      value={referenceAction}
+                      onChange={(e) => setReferenceAction(e.target.value)}
+                      placeholder="Например: сохрани композицию, но замени фон и цвета под тему статьи"
+                    />
+                  </label>
+                  <button type="button" className="text-xs text-[var(--accent)] hover:underline" onClick={() => { setRefFile(null); setRefName(null) }}>
+                    Убрать референс
+                  </button>
+                </div>
+              ) : null}
               <button
                 type="button"
-                disabled={pending}
+                disabled={pending || (mode === 'image' && !canStoreImage)}
                 className="rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
                 onClick={() => void run()}
               >
-                {pending ? 'Выполняется…' : 'Выполнить'}
+                {pending ? 'Создаём…' : mode === 'image' ? 'Создать изображение' : mode === 'video' ? 'Создать видео' : 'Получить вариант текста'}
               </button>
               {err ? <p className="text-sm text-red-600">{err}</p> : null}
             </div>
@@ -286,7 +404,7 @@ export function AiStudioModal({
 
           {iters.length > 0 ? (
             <div className="mt-4">
-              <p className="text-sm font-medium">Итерации</p>
+              <p className="text-sm font-medium">3. Результат</p>
               <div className="mt-1 flex flex-wrap gap-1">
                 {iters.map((it, i) => (
                   <button
@@ -299,21 +417,20 @@ export function AiStudioModal({
                     }
                     onClick={() => setActiveIdx(i)}
                   >
-                    {i + 1}. {it.mode}
+                    {i + 1}. {MODES.find((m) => m.id === it.mode)?.label ?? it.mode}
                     {it.ok === false ? ' (!)' : ''}
                   </button>
                 ))}
               </div>
               {active ? (
                 <div className="mt-2 flex min-h-[8rem] flex-col space-y-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-3 text-sm">
-                  <p className="shrink-0 text-xs text-[var(--muted)]">Промпт</p>
-                  <pre className="min-h-0 min-w-0 max-h-40 flex-1 resize-y overflow-auto whitespace-pre-wrap break-words text-xs">
-                    {active.prompt || '—'}
-                  </pre>
-                  <p className="shrink-0 text-xs text-[var(--muted)]">Ответ</p>
-                  <pre className="min-h-0 min-w-0 max-h-64 flex-1 resize-y overflow-auto whitespace-pre-wrap break-words font-sans text-sm">
-                    {active.output || '—'}
-                  </pre>
+                  {active.mode === 'image' && active.imageDataUrl ? (
+                    <img src={active.imageDataUrl} alt="Сгенерированная иллюстрация" className="max-h-72 self-start rounded-lg object-contain" />
+                  ) : (
+                    <pre className="min-h-0 min-w-0 max-h-64 flex-1 resize-y overflow-auto whitespace-pre-wrap break-words font-sans text-sm">
+                      {active.output || '—'}
+                    </pre>
+                  )}
                   {active.tokensUsed != null || active.postTotal != null ? (
                     <p className="text-xs text-[var(--muted)]">
                       {active.tokensUsed != null ? (
@@ -330,13 +447,14 @@ export function AiStudioModal({
                       ) : null}
                     </p>
                   ) : null}
-                  {active.mode === 'text' || active.mode === 'split' ? (
+                  {(active.mode === 'text' || active.mode === 'split' || active.mode === 'image') && active.ok ? (
                     <button
                       type="button"
-                      className="rounded border border-[var(--border)] bg-[var(--surface)] px-2 py-1 text-sm"
-                      onClick={() => onApplyToArticle(active.output)}
+                      disabled={applyPending || (active.mode === 'image' && !onApplyImage)}
+                      className="self-start rounded-lg bg-[var(--accent)] px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                      onClick={() => void applyResult()}
                     >
-                      Вставить ответ в статью
+                      {applyPending ? 'Добавляем…' : active.mode === 'image' ? 'Готово — добавить в медиа поста' : 'Готово — заменить текст поста'}
                     </button>
                   ) : null}
                 </div>

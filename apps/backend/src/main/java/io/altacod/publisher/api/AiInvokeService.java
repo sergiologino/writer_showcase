@@ -118,11 +118,11 @@ public class AiInvokeService {
             return res;
         }
         if (postId == null) {
-            return AiInvokeResponse.ofSuccess(res.output(), res.tokensUsed(), null);
+            return AiInvokeResponse.ofSuccess(res.output(), res.tokensUsed(), null, res.imageDataUrl());
         }
         int delta = res.tokensUsed() != null ? res.tokensUsed() : 0;
         long total = postService.addAccumulatedAiTokens(workspaceId, postId, delta);
-        return AiInvokeResponse.ofSuccess(res.output(), res.tokensUsed(), total);
+        return AiInvokeResponse.ofSuccess(res.output(), res.tokensUsed(), total, res.imageDataUrl());
     }
 
     private AiInvokeResponse sendWithNetworkFallback(

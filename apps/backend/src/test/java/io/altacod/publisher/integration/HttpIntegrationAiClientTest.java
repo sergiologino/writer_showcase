@@ -10,11 +10,36 @@ import org.springframework.web.server.ResponseStatusException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class HttpIntegrationAiClientTest {
+
+    @Test
+    void imageGenerationReturnsImageBytesToTheEditor() throws Exception {
+        String png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/lS0AAAAASUVORK5CYII=";
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/api/ai/process", exchange -> {
+            byte[] body = ("{\"status\":\"success\",\"response\":{\"data\":[{\"b64_json\":\"" + png + "\"}]}}")
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, body.length);
+            exchange.getResponseBody().write(body);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var response = client(props(server.getAddress().getPort())).send(new NoteappAiProcessRequest(
+                    "publisher-user-1", null, "image_generation", Map.of("prompt", "рисунок"), null));
+            assertThat(response.ok()).isTrue();
+            assertThat(response.imageDataUrl()).isEqualTo("data:image/png;base64," + png);
+            assertThat(response.output()).isEqualTo("Изображение готово");
+        } finally {
+            server.stop(0);
+        }
+    }
 
     @Test
     void availableNetworksUsesClientApiKeyAndReturnsArray() throws Exception {

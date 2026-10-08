@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { deleteMedia, fetchMediaPage, uploadMedia } from '../api/media'
+import { AuthenticatedMediaThumb } from '../components/AuthenticatedMediaThumb'
 import { Seo } from '../components/Seo'
 
 export function MediaLibraryPage() {
@@ -85,6 +86,7 @@ export function MediaLibraryPage() {
                   Удалить
                 </button>
               </div>
+              <AuthenticatedMediaThumb mediaId={m.id} mimeType={m.mimeType} />
               <div className="text-[var(--muted)]">
                 <div>{m.type}</div>
                 {m.mimeType ? <div>{m.mimeType}</div> : null}

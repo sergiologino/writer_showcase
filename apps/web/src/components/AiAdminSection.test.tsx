@@ -38,7 +38,7 @@ describe('AiAdminSection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Поднять beta для chat' }))
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить приоритеты' }))
     await waitFor(() => expect(saveAiRouting).toHaveBeenCalledWith({
-      chat: ['beta', 'alpha'], image_generation: [], video_generation: [], transcription: [], speech_synthesis: [],
+      chat: ['beta', 'alpha'], image_generation: [], image_edit: [], video_generation: [], transcription: [], speech_synthesis: [],
     }))
   })
 
@@ -50,7 +50,7 @@ describe('AiAdminSection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить приоритеты' }))
     await waitFor(() => expect(saveAiRouting).toHaveBeenCalledWith(expect.objectContaining({ chat: ['old-network'] })))
     fireEvent.click(screen.getByRole('button', { name: 'Убрать old-network из chat' }))
-    expect(screen.getAllByText('Автовыбор интеграции')).toHaveLength(5)
+    expect(screen.getAllByText('Автовыбор интеграции')).toHaveLength(6)
   })
 
   it('shows the upstream error instead of treating it as an empty list', async () => {

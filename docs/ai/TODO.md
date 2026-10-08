@@ -11,7 +11,7 @@
    - Критерии приёмки: пост читается из папки без приложения; офлайн-правки не теряются; после возвращения сети и на втором устройстве появляется та же версия; конфликт не затирает текст; удаление приложения не удаляет папку. Для каждого этапа — автотесты и `npm run build`.
 
 2. **Интеграция с нейросетями (углубление)**
-   - Уже есть: noteapp-ai-integration, `/api/ai/invoke` и `/api/ai/studio/invoke` → `POST /api/ai/process`, промпты workspace, **admin routing** + список сетей, **AI-студия** в редакторе (`requestType` chat / image / video и сценарий «части»), переменные окружения — **[`docs/ai/AI_INTEGRATION.md`](./AI_INTEGRATION.md)**.  
+   - Уже есть: noteapp-ai-integration, `/api/ai/invoke` и `/api/ai/studio/invoke` → `POST /api/ai/process`, промпты workspace, **admin routing** + список сетей, **AI-студия** в редакторе (`requestType` chat / image / image_edit / video и сценарий «части»), кнопки у текста и медиа поста, перенос готового результата в редактор с локальным сохранением AI-изображения — **[`docs/ai/AI_INTEGRATION.md`](./AI_INTEGRATION.md)**.
    - Далее: при необходимости **batch-черновики** из ответа «несколько постов» (одним действием), варианты текста на канал совместно с `PostVariant` (см. `TZ_BACKLOG.md`).
 
 ## Очередь (ещё не закрыта по `CURRENT_STATE` / `TZ_BACKLOG`)

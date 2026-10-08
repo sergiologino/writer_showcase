@@ -10,7 +10,7 @@ import { uploadMedia } from '../api/media'
 import { createPost, fetchPost, updatePost, type PostPayload } from '../api/posts'
 import type { ChannelType, PostStatus, PostVisibility } from '../api/types'
 import type { MeResponse } from '../api/types'
-import { AiStudioModal } from '../components/AiStudioModal'
+import { AiStudioModal, type StudioMode } from '../components/AiStudioModal'
 import { AuthenticatedMediaThumb } from '../components/AuthenticatedMediaThumb'
 import { LocalMediaThumb } from '../components/LocalMediaThumb'
 import { Seo } from '../components/Seo'
@@ -103,6 +103,7 @@ export function PostEditorPage() {
   const [newCategoryName, setNewCategoryName] = useState('')
   const [scheduledLocal, setScheduledLocal] = useState('')
   const [studioOpen, setStudioOpen] = useState(false)
+  const [studioMode, setStudioMode] = useState<StudioMode>('text')
   const [aiGeneratedOverride, setAiGeneratedOverride] = useState<boolean | null>(null)
   const [folderName, setFolderName] = useState<string | null>(null)
   const [localMessage, setLocalMessage] = useState<string | null>(null)
@@ -392,6 +393,10 @@ export function PostEditorPage() {
   })
 
   const generatedPreview = useMemo(() => articleSourceToHtml(bodySourceWatch ?? ''), [bodySourceWatch])
+  const openStudio = (mode: StudioMode) => {
+    setStudioMode(mode)
+    setStudioOpen(true)
+  }
 
   return (
     <div className="space-y-6">
@@ -416,7 +421,7 @@ export function PostEditorPage() {
           <button
             type="button"
             className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm hover:border-[var(--accent)]"
-            onClick={() => setStudioOpen(true)}
+            onClick={() => openStudio('text')}
           >
             AI-студия
           </button>
@@ -432,6 +437,13 @@ export function PostEditorPage() {
       <AiStudioModal
         open={studioOpen}
         onClose={() => setStudioOpen(false)}
+        initialMode={studioMode}
+        canStoreImage={!!folderName}
+        onChooseImageFolder={async () => {
+          const name = await choosePostFolder()
+          setFolderName(name)
+          setLocalError(null)
+        }}
         originalBody={bodySourceWatch ?? ''}
         postId={isNew ? null : Number(id)}
         articleTokensTotal={!isNew ? (existing.data?.aiTokensTotal ?? 0) : 0}
@@ -439,6 +451,25 @@ export function PostEditorPage() {
           setValue('bodySource', md, { shouldDirty: true })
           setAiGeneratedOverride(true)
           setStudioOpen(false)
+        }}
+        onApplyImage={async (file) => {
+          setUploadBusy(true)
+          setUploadErr(null)
+          try {
+            const localMedia = await saveSelectedMedia(localIdRef.current, file)
+            const row: MediaRow = { ...localMedia, id: null }
+            setMediaItems((prev) => [...prev, row])
+            setAiGeneratedOverride(true)
+            try {
+              const asset = await uploadMedia(file)
+              setMediaItems((prev) => prev.map((item) => item.fileName === row.fileName
+                ? { ...row, id: asset.id, serverId: asset.id, mimeType: asset.mimeType } : item))
+            } catch {
+              setUploadErr('Изображение сохранено локально. Загрузка на сервер повторится при сохранении материала.')
+            }
+          } finally {
+            setUploadBusy(false)
+          }
         }}
       />
 
@@ -577,9 +608,19 @@ export function PostEditorPage() {
             )}
           </div>
 
-          <label className="block text-sm font-medium">
-            Текст статьи (Markdown)
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label htmlFor="post-body-source" className="text-sm font-medium">Текст статьи (Markdown)</label>
+              <button
+                type="button"
+                className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm hover:border-[var(--accent)]"
+                onClick={() => openStudio('text')}
+              >
+                Улучшить текст
+              </button>
+            </div>
             <textarea
+              id="post-body-source"
               rows={14}
               className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 font-mono text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
               {...form.register('bodySource')}
@@ -587,7 +628,7 @@ export function PostEditorPage() {
             <span className="mt-1 block text-xs text-[var(--muted)]">
               Заголовки, списки, ссылки, код — в формате Markdown. Для сайта HTML собирается автоматически.
             </span>
-          </label>
+          </div>
 
           <label className="block text-sm font-medium">
             Плановая публикация (локальное время)
@@ -690,6 +731,13 @@ export function PostEditorPage() {
                 onClick={() => fileInputRef.current?.click()}
               >
                 {uploadBusy ? 'Загрузка…' : 'Загрузить файлы'}
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm hover:border-[var(--accent)]"
+                onClick={() => openStudio('image')}
+              >
+                Создать изображение
               </button>
             </div>
             {uploadErr ? <p className="text-xs text-red-600">{uploadErr}</p> : null}

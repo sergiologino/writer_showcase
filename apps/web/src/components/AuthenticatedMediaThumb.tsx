@@ -17,10 +17,14 @@ export function AuthenticatedMediaThumb({ mediaId, mimeType }: Props) {
     let revoked = false
     const fileUrl = resolveApiUrl(`/api/media/${mediaId}/file`)
     const token = getStoredAccessToken()
+    const workspaceId = localStorage.getItem('workspaceId')
     ;(async () => {
       try {
         const res = await fetch(fileUrl, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(workspaceId ? { 'X-Workspace-Id': workspaceId } : {}),
+          },
         })
         if (!res.ok) {
           throw new Error(String(res.status))
@@ -62,7 +66,7 @@ export function AuthenticatedMediaThumb({ mediaId, mimeType }: Props) {
     return (
       <img
         src={objectUrl}
-        alt=""
+        alt={`Превью изображения #${mediaId}`}
         className="h-20 w-24 shrink-0 rounded border border-[var(--border)] object-cover"
       />
     )

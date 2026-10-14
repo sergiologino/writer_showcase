@@ -132,6 +132,7 @@ export interface PageDto<T> {
 
 export interface PublicPostSummary {
   id: number
+  authorId: number
   title: string
   slug: string
   excerpt: string | null

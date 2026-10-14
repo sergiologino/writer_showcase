@@ -100,7 +100,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, isRetry 
   }
   const ws = getWorkspaceId()
   const pathNoQuery = path.split('?')[0] ?? path
-  if (ws && !path.startsWith('/api/auth/') && !path.startsWith('/api/public/') && pathNoQuery !== '/api/me') {
+  if (ws && !headers.has('X-Workspace-Id') && !path.startsWith('/api/auth/') && !path.startsWith('/api/public/') && pathNoQuery !== '/api/me') {
     headers.set('X-Workspace-Id', ws)
   }
   if (init.body && typeof init.body === 'string' && !headers.has('Content-Type')) {

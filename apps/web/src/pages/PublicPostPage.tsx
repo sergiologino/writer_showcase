@@ -6,6 +6,7 @@ import { getStoredAccessToken, resolveApiUrl } from '../api/client'
 import { fetchPublicEngagement, postPublicComment, togglePostLike } from '../api/publicEngagement'
 import { PublicAuthorChip } from '../components/PublicAuthorChip'
 import { PublicSiteNav } from '../components/PublicSiteNav'
+import { PublicPostOwnerActions } from '../components/PublicPostOwnerActions'
 import { Seo } from '../components/Seo'
 
 export function PublicPostPage() {
@@ -123,6 +124,8 @@ export function PublicPostPage() {
           <p className="text-xs text-[var(--muted)]">{new Date(post.publishedAt).toLocaleString()}</p>
         ) : null}
       </header>
+      <PublicPostOwnerActions postId={post.id} authorId={post.authorId} workspaceSlug={ws}
+        title={post.title} openEditorAfter />
       {post.excerpt ? <p className="text-lg text-[var(--muted)]">{post.excerpt}</p> : null}
 
       <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] pb-4">

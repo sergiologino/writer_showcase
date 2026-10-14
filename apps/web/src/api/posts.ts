@@ -56,6 +56,13 @@ export function updatePost(id: number, payload: PostPayload): Promise<PostRespon
   })
 }
 
+export function unpublishPost(id: number, workspaceId: number): Promise<PostResponse> {
+  return apiFetch<PostResponse>(`/api/posts/${id}/unpublish`, {
+    method: 'PATCH',
+    headers: { 'X-Workspace-Id': String(workspaceId) },
+  })
+}
+
 export function fetchPublicPosts(
   workspaceSlug: string,
   page: number

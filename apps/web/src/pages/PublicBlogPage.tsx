@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { resolveApiUrl } from '../api/client'
 import { PublicAuthorChip } from '../components/PublicAuthorChip'
 import { PublicSiteNav } from '../components/PublicSiteNav'
+import { PublicPostOwnerActions } from '../components/PublicPostOwnerActions'
 import { fetchPublicPosts } from '../api/posts'
 import { Seo } from '../components/Seo'
 
@@ -129,6 +130,7 @@ export function PublicBlogPage() {
                         Читать дальше →
                       </Link>
                     </p>
+                    <PublicPostOwnerActions postId={post.id} authorId={post.authorId} workspaceSlug={slug} title={post.title} />
                   </div>
                 </div>
               </article>

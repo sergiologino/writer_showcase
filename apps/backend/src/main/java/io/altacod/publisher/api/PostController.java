@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -64,6 +65,15 @@ public class PostController {
             @Valid @RequestBody PostPayload payload
     ) {
         return postService.update(workspaceId, id, payload);
+    }
+
+    @PatchMapping("/{id}/unpublish")
+    public PostResponse unpublish(
+            @ActiveWorkspace Long workspaceId,
+            @AuthenticationPrincipal SecurityUserPrincipal principal,
+            @PathVariable Long id
+    ) {
+        return postService.unpublish(workspaceId, principal.getId(), id);
     }
 
     @DeleteMapping("/{id}")

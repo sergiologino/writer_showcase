@@ -71,6 +71,7 @@ public class PublicPostService {
                 firstMediaUrl,
                 firstMediaMimeType,
                 bodyPreviewPlain,
+                post.getAuthor().getId(),
                 post.getAuthor().getDisplayName(),
                 authorAvatar
         );
@@ -126,6 +127,7 @@ public class PublicPostService {
                 media,
                 post.getPublishedAt(),
                 post.getUpdatedAt(),
+                post.getAuthor().getId(),
                 post.getAuthor().getDisplayName(),
                 av
         );

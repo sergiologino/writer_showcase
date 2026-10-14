@@ -259,6 +259,26 @@ public class PostService {
         return toResponse(post);
     }
 
+    @Transactional
+    public PostResponse unpublish(Long workspaceId, Long authorId, Long id) {
+        PostEntity post = postRepository.findByIdAndWorkspaceId(id, workspaceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found"));
+        if (!post.getAuthor().getId().equals(authorId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the author can unpublish this post");
+        }
+        if (post.getStatus() != PostStatus.PUBLISHED || post.getVisibility() != PostVisibility.PUBLIC) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Post is not published in the public blog");
+        }
+        post.updateContent(
+                post.getTitle(), post.getSlug(), post.getExcerpt(), post.getBodySource(), post.getBodyHtml(),
+                post.getVisibility(), PostStatus.DRAFT, Instant.now(), null
+        );
+        post.setScheduledPublishAt(null);
+        post.setScheduleMissed(false);
+        post.setLateScheduleReleased(true);
+        return toResponse(post);
+    }
+
     private void applyScheduleStateOnCreate(PostEntity post, PostPayload payload, Instant now) {
         Instant sched = payload.scheduledPublishAt();
         if (sched == null) {

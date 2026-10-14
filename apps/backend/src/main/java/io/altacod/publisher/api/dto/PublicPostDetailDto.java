@@ -14,6 +14,7 @@ public record PublicPostDetailDto(
         List<PublicMediaDto> media,
         Instant publishedAt,
         Instant updatedAt,
+        long authorId,
         String authorDisplayName,
         String authorAvatarUrl
 ) {

@@ -1,6 +1,10 @@
 import { apiFetch } from './client'
 import type { MeResponse, UpdateProfilePayload } from './types'
 
+export function fetchMe(): Promise<MeResponse> {
+  return apiFetch<MeResponse>('/api/me')
+}
+
 export function updateProfile(payload: UpdateProfilePayload): Promise<MeResponse> {
   return apiFetch<MeResponse>('/api/me', {
     method: 'PATCH',

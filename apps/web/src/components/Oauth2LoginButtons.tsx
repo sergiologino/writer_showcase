@@ -54,7 +54,7 @@ export function Oauth2LoginButtons() {
       {q.data.google ? (
         <a
           href={getOAuth2AuthorizationUrl('google')}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] py-2.5 text-sm font-medium text-[var(--text)] transition hover:bg-[var(--surface)]"
+          className="ui-button ui-button--secondary w-full"
         >
           <GoogleIcon />
           Войти через Google
@@ -63,7 +63,7 @@ export function Oauth2LoginButtons() {
       {q.data.yandex ? (
         <a
           href={getOAuth2AuthorizationUrl('yandex')}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg)] py-2.5 text-sm font-medium text-[var(--text)] transition hover:bg-[var(--surface)]"
+          className="ui-button ui-button--secondary w-full"
         >
           <YandexIcon />
           Войти через Yandex

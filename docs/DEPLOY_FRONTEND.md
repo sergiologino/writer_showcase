@@ -16,9 +16,12 @@
 
 - stage `node:22-alpine` выполняет `npm install && npm run build`;
 - runtime `nginx:1.27-alpine` отдаёт `dist`;
+- публичные маршруты `/` и `/blog/...` проксируются на backend для HTML с текстом и метаданными в первом ответе;
 - SPA fallback: прямой заход на `/app/...` возвращает `index.html`;
 - `/api/*`, `/robots.txt` и `/sitemap.xml` проксируются на backend через переменную `API_UPSTREAM`;
 - `/health` возвращает `ok`.
+
+Backend должен быть доступен как `API_UPSTREAM`; при его временной недоступности Nginx возвращает SPA для публичных URL как резервный ответ. Файлы `/assets/app.css` и `/assets/app.js` имеют стабильные имена и заголовок `Cache-Control: no-cache`; остальные ресурсы с хешами остаются долгоживущими. Frontend и backend следует выпускать согласованной версией.
 
 Nginx разрешает hostname из `API_UPSTREAM` при запросе. Если backend ещё не запущен или не находится в той же Docker-сети, контейнер frontend всё равно стартует и отдаёт SPA и `/health`, а proxy-маршруты временно возвращают `502`. Для восстановления API укажите в `API_UPSTREAM` фактическое имя backend в сети Coolify и проверьте, что оба контейнера подключены к одной сети. Имя `api` по умолчанию подходит только там, где такой сервис действительно существует (например, в `docker-compose.coolify.yml`).
 
@@ -84,8 +87,9 @@ npm run preview
 2. Поднимите backend на `8080`.
 3. Настройте Nginx (или Caddy) на одном порту, например 8081:
 
-   - `location /` → root `.../apps/web/dist`, `try_files $uri $uri/ /index.html` (SPA fallback);
-   - `location /api/` → `proxy_pass http://127.0.0.1:8080/`.
+   - `location = /` и `location /blog/` → `proxy_pass http://127.0.0.1:8080`;
+   - `location /` → root `.../apps/web/dist`, `try_files $uri $uri/ /index.html` (SPA fallback для кабинета);
+   - `location /api/` → `proxy_pass http://127.0.0.1:8080`.
 
 Так вы проверяете CORS и пути так же, как на сервере.
 
@@ -95,7 +99,7 @@ npm run preview
 
 ### 3.1. Только статика
 
-Скопируйте содержимое `dist` на хостинг статики (S3+CloudFront, GitHub Pages **не** подойдёт без отдельного API на том же домене из-за относительных `/api`).
+Одна только статика не обеспечивает серверный HTML для публичных страниц. Если используется хостинг статики, нужен отдельный edge/reverse proxy для `/` и `/blog/...` на backend. GitHub Pages **не** подойдёт без отдельного API на том же домене из-за относительных `/api`.
 
 ### 3.2. Nginx (пример фрагмента)
 
@@ -104,6 +108,23 @@ server {
     server_name app.example.com;
     root /var/www/publisher-web/dist;
     index index.html;
+
+    location = / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /blog/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ~ ^/assets/app\.(css|js)$ {
+        try_files $uri =404;
+        add_header Cache-Control "no-cache";
+    }
 
     location / {
         try_files $uri $uri/ /index.html;
@@ -137,7 +158,7 @@ server {
    - Команда сборки: `npm install && npm run build`.  
    - Публикуемая папка: **`dist`**.
 
-2. Если Coolify позволяет добавить **маршрут / прокси** для пути `/api` на внутренний сервис backend — включите его и укажите URL контейнера/сервиса API (порт 8080).
+2. Если Coolify позволяет добавить **маршруты / прокси** для `/`, `/blog/...` и `/api` на внутренний сервис backend — включите их и укажите URL контейнера/сервиса API (порт 8080). Путь `/app/...` остаётся на статике.
 
 3. Если отдельного «объединяющего» ресурса нет: поднимите **один** публичный сервис с образом **Nginx** (или Caddy), где в контейнер кладёте `dist` и конфиг как в п. 3.2, а `proxy_pass` указывает на hostname сервиса backend в docker-сети Coolify (например `http://publisher-api:8080`).
 

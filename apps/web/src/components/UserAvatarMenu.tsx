@@ -61,11 +61,11 @@ export function UserAvatarMenu({ displayName, email, avatarUrl = null }: Props) 
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 z-20 mt-1 min-w-[11rem] rounded-lg border border-[var(--border)] bg-[var(--surface)] py-1 shadow-lg"
+          className="ui-popover absolute right-0 z-20 mt-2 min-w-[11rem] p-1"
         >
           <Link
             role="menuitem"
-            className="block px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--bg)]"
+            className="ui-menu-item"
             to="/app/profile"
             onClick={() => setOpen(false)}
           >
@@ -73,7 +73,7 @@ export function UserAvatarMenu({ displayName, email, avatarUrl = null }: Props) 
           </Link>
           <Link
             role="menuitem"
-            className="block px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--bg)]"
+            className="ui-menu-item"
             to="/app/channels"
             onClick={() => setOpen(false)}
           >
@@ -82,7 +82,7 @@ export function UserAvatarMenu({ displayName, email, avatarUrl = null }: Props) 
           <button
             type="button"
             role="menuitem"
-            className="w-full px-3 py-2 text-left text-sm text-[var(--text)] hover:bg-[var(--bg)]"
+            className="ui-menu-item"
             onClick={() => {
               setOpen(false)
               clearSession()

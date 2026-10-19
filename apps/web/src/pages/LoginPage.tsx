@@ -54,7 +54,7 @@ export function LoginPage() {
       <h1 className="text-2xl font-semibold tracking-tight">Вход</h1>
       <p className="mt-1 text-sm text-[var(--muted)]">Ваша лента, материалы и публикации в одном месте</p>
       <form
-        className="mt-8 space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm"
+        className="ui-card mt-8 space-y-4 p-6"
         onSubmit={(ev) => {
           ev.preventDefault()
           setError(null)
@@ -77,7 +77,7 @@ export function LoginPage() {
             type="email"
             required
             autoComplete="email"
-            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-[var(--text)] outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            className="ui-field mt-1 w-full"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -88,7 +88,7 @@ export function LoginPage() {
             type="password"
             required
             autoComplete="current-password"
-            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            className="ui-field mt-1 w-full"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -96,7 +96,7 @@ export function LoginPage() {
         <button
           type="submit"
           disabled={mutation.isPending}
-          className="w-full rounded-lg bg-[var(--accent)] py-2.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-60"
+          className="ui-button ui-button--accent w-full"
         >
           {mutation.isPending ? 'Вход…' : 'Войти'}
         </button>

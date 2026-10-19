@@ -1,11 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { studioInvoke } from '../api/aiStudio'
 import { uploadMedia } from '../api/media'
 import { createPost } from '../api/posts'
-import { choosePostFolder, saveLocalPost, saveSelectedMedia } from '../lib/localPosts'
+import { choosePostFolder, ensurePostFolderWriteAccess, saveLocalPost, saveSelectedMedia } from '../lib/localPosts'
 import { PostEditorPage } from './PostEditorPage'
 
 vi.mock('../api/categories', () => ({ fetchCategories: vi.fn().mockResolvedValue([]), createCategory: vi.fn() }))
@@ -22,6 +22,7 @@ vi.mock('../lib/localPosts', () => ({
   saveSelectedMedia: vi.fn(),
   bindServerId: vi.fn(),
   choosePostFolder: vi.fn(),
+  ensurePostFolderWriteAccess: vi.fn(),
   folderPickerAvailable: vi.fn().mockReturnValue(true),
 }))
 
@@ -66,9 +67,71 @@ describe('local-first save in the editor', () => {
       .toBeLessThan(vi.mocked(createPost).mock.invocationCallOrder[0])
   })
 
+  it('previews the HTML that will be saved when manual HTML is enabled', async () => {
+    vi.mocked(saveLocalPost).mockResolvedValue(undefined)
+    vi.mocked(createPost).mockResolvedValue({ id: 18 } as Awaited<ReturnType<typeof createPost>>)
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/app/posts/new']}>
+          <Routes><Route path="/app/posts/new" element={<PostEditorPage />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    fireEvent.change(screen.getByLabelText('Заголовок'), { target: { value: 'Материал' } })
+    fireEvent.change(screen.getByLabelText('Текст статьи (Markdown)'), { target: { value: '## Из Markdown' } })
+    const publishingPanel = screen.getByRole('complementary', { name: 'Настройки публикации' })
+    expect(within(publishingPanel).getByLabelText('Статус')).toHaveValue('DRAFT')
+    expect(within(publishingPanel).getByRole('button', { name: 'Сохранить' })).toBeInTheDocument()
+    const preview = screen.getByRole('region', { name: 'Предпросмотр статьи' })
+    expect(within(preview).getByRole('heading', { name: 'Из Markdown' })).toBeInTheDocument()
+
+    const details = container.querySelector('details')!
+    act(() => {
+      details.open = true
+      fireEvent(details, new Event('toggle', { bubbles: true }))
+    })
+    const htmlField = within(details).getByRole('textbox')
+    fireEvent.change(htmlField, { target: { value: '<h2>Ручная версия</h2>' } })
+    expect(within(preview).getByRole('heading', { name: 'Ручная версия' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Сохранить$/ }))
+    await waitFor(() => expect(createPost).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(createPost).mock.calls[0][0]).toMatchObject({
+      bodySource: '## Из Markdown', bodyHtml: '<h2>Ручная версия</h2>', status: 'DRAFT',
+    })
+  })
+
+  it('keeps status, visibility and scheduling as separate save settings', async () => {
+    vi.mocked(saveLocalPost).mockResolvedValue(undefined)
+    vi.mocked(createPost).mockResolvedValue({ id: 19 } as Awaited<ReturnType<typeof createPost>>)
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/app/posts/new']}>
+          <Routes><Route path="/app/posts/new" element={<PostEditorPage />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    const panel = screen.getByRole('complementary', { name: 'Настройки публикации' })
+    fireEvent.change(screen.getByLabelText('Заголовок'), { target: { value: 'Закрытый материал' } })
+    fireEvent.change(within(panel).getByLabelText('Статус'), { target: { value: 'PUBLISHED' } })
+    fireEvent.change(within(panel).getByLabelText('Видимость'), { target: { value: 'PRIVATE' } })
+    fireEvent.change(within(panel).getByLabelText(/Плановая публикация/), {
+      target: { value: '2026-10-20T12:30' },
+    })
+    fireEvent.click(within(panel).getByRole('button', { name: 'Сохранить' }))
+    await waitFor(() => expect(createPost).toHaveBeenCalledTimes(1))
+    expect(vi.mocked(createPost).mock.calls[0][0]).toMatchObject({
+      status: 'PUBLISHED', visibility: 'PRIVATE', scheduledPublishAt: expect.any(String),
+    })
+  })
+
   it('adds a generated image to local post media before uploading it', async () => {
     vi.mocked(saveLocalPost).mockResolvedValue(undefined)
     vi.mocked(choosePostFolder).mockResolvedValue('Documents')
+    vi.mocked(ensurePostFolderWriteAccess).mockResolvedValue('Documents')
     vi.mocked(saveSelectedMedia).mockResolvedValue({
       fileName: 'generated.png', mimeType: 'image/png', serverId: null, originalName: 'generated.png',
     })

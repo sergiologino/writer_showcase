@@ -49,7 +49,7 @@ export function RegisterPage() {
       <h1 className="text-2xl font-semibold tracking-tight">Регистрация</h1>
       <p className="mt-1 text-sm text-[var(--muted)]">Создаётся личный workspace автоматически</p>
       <form
-        className="mt-8 space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-sm"
+        className="ui-card mt-8 space-y-4 p-6"
         onSubmit={(ev) => {
           ev.preventDefault()
           setError(null)
@@ -67,7 +67,7 @@ export function RegisterPage() {
             type="email"
             required
             autoComplete="email"
-            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            className="ui-field mt-1 w-full"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -78,7 +78,7 @@ export function RegisterPage() {
             type="text"
             autoComplete="nickname"
             placeholder="Как вас представить"
-            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            className="ui-field mt-1 w-full"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
           />
@@ -90,7 +90,7 @@ export function RegisterPage() {
             required
             minLength={8}
             autoComplete="new-password"
-            className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            className="ui-field mt-1 w-full"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -98,7 +98,7 @@ export function RegisterPage() {
         <button
           type="submit"
           disabled={mutation.isPending}
-          className="w-full rounded-lg bg-[var(--accent)] py-2.5 text-sm font-medium text-white transition hover:bg-[var(--accent-hover)] disabled:opacity-60"
+          className="ui-button ui-button--accent w-full"
         >
           {mutation.isPending ? 'Создание…' : 'Создать аккаунт'}
         </button>

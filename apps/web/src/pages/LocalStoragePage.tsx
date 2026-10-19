@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { LocalMediaThumb } from '../components/LocalMediaThumb'
 import { Seo } from '../components/Seo'
-import { choosePostFolder, folderPickerAvailable, inspectLocalArchive, type LocalArchiveItem } from '../lib/localPosts'
+import { choosePostFolder, folderPickerAvailable, inspectLocalArchive, postFolderStatus, type LocalArchiveItem } from '../lib/localPosts'
 
 export function LocalStoragePage() {
   const [folderName, setFolderName] = useState<string | null>(null)
@@ -13,6 +13,8 @@ export function LocalStoragePage() {
   const refresh = async () => {
     setBusy(true)
     try {
+      const status = await postFolderStatus()
+      setFolderName(status.name)
       const archive = await inspectLocalArchive()
       setFolderName(archive.folderName)
       setPosts(archive.posts)
@@ -49,16 +51,17 @@ export function LocalStoragePage() {
             })
           }}
         >
-          Выбрать папку
+          {folderName ? 'Восстановить доступ' : 'Выбрать папку'}
         </button>
         <button type="button" onClick={() => void refresh()} disabled={busy}
           className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">
           Обновить
         </button>
         <span className="text-sm text-[var(--muted)]">{folderName ? `${folderName}/publisher` : 'Папка не выбрана'}</span>
+        <Link to="/app/profile" className="text-sm text-[var(--accent)] hover:underline">Сменить папку в профиле</Link>
       </div>
-      {error ? <p role="alert" className="text-sm text-red-600">{error}</p> : null}
-      {posts.length === 0 ? (
+      {error ? <p role="alert" className="text-sm text-[var(--danger)]">{error}</p> : null}
+      {!error && posts.length === 0 ? (
         <p className="text-sm text-[var(--muted)]">Материалов в папке пока нет.</p>
       ) : (
         <ul className="space-y-4">

@@ -130,6 +130,7 @@ export interface AiStudioModalProps {
   onApplyImage?: (file: File) => Promise<void>
   canStoreImage?: boolean
   onChooseImageFolder?: () => Promise<void>
+  onEnsureImageStorage?: () => Promise<void>
   initialMode?: StudioMode
   /** Сохранённый пост — для накопительного учёта токенов; у черновика без id нет. */
   postId?: number | null
@@ -145,6 +146,7 @@ export function AiStudioModal({
   onApplyImage,
   canStoreImage = true,
   onChooseImageFolder,
+  onEnsureImageStorage,
   initialMode = 'text',
   postId = null,
   articleTokensTotal = 0,
@@ -193,6 +195,7 @@ export function AiStudioModal({
     setErr(null)
     setLastRaw(null)
     try {
+      if (mode === 'image') await onEnsureImageStorage?.()
       const body: StudioAiRequest = {
         requestType: mode === 'image' && refFile ? 'image_edit' : meta.requestType,
         payload: buildPayload(mode, originalBody, prompt, refFile, referenceAction),
@@ -225,7 +228,7 @@ export function AiStudioModal({
     } finally {
       setPending(false)
     }
-  }, [mode, originalBody, prompt, postId, refFile, referenceAction, qc])
+  }, [mode, originalBody, prompt, postId, refFile, referenceAction, qc, onEnsureImageStorage])
 
   const applyResult = useCallback(async () => {
     if (!active || !active.ok) return
@@ -238,6 +241,7 @@ export function AiStudioModal({
     setApplyPending(true)
     setErr(null)
     try {
+      await onEnsureImageStorage?.()
       const blob = await (await fetch(active.imageDataUrl)).blob()
       const extension = blob.type === 'image/jpeg' ? 'jpg' : blob.type === 'image/webp' ? 'webp' : 'png'
       await onApplyImage(new File([blob], `publisher-ai-${Date.now()}.${extension}`, { type: blob.type }))
@@ -247,7 +251,7 @@ export function AiStudioModal({
     } finally {
       setApplyPending(false)
     }
-  }, [active, onApplyImage, onApplyToArticle, onClose])
+  }, [active, onApplyImage, onApplyToArticle, onClose, onEnsureImageStorage])
 
   useEffect(() => {
     if (iters.length === 0) {

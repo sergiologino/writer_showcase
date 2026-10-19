@@ -44,7 +44,7 @@ export function ThemeToggleButton() {
   return (
     <button
       type="button"
-      className="rounded-lg border border-[var(--border)] p-2 text-[var(--muted)] transition hover:bg-[var(--bg)] hover:text-[var(--text)]"
+      className="ui-button ui-button--secondary h-10 w-10 p-2 text-[var(--muted)] hover:text-[var(--text)]"
       title={dark ? 'Светлая тема' : 'Тёмная тема'}
       aria-label={dark ? 'Включить светлую тему' : 'Включить тёмную тему'}
       onClick={() => {

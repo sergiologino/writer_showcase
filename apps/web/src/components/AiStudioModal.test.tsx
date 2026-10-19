@@ -76,4 +76,25 @@ describe('AiStudioModal', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Готово — добавить в медиа поста' }))
     await waitFor(() => expect(onApplyImage).toHaveBeenCalledWith(expect.any(File)))
   })
+
+  it('checks the saved folder permission before requesting image generation', async () => {
+    const ensure = vi.fn().mockRejectedValueOnce(new Error('Доступ к папке требуется подтвердить'))
+      .mockResolvedValueOnce(undefined)
+    vi.mocked(studioInvoke).mockResolvedValue({
+      ok: true, output: 'Готово', imageDataUrl: 'data:image/png;base64,iVBORw0KGgo=',
+      errorCode: null, tokensUsed: null, postTokensTotal: null,
+    })
+    const client = new QueryClient()
+    render(<QueryClientProvider client={client}>
+      <AiStudioModal open initialMode="image" originalBody="Текст" onClose={vi.fn()}
+        onApplyToArticle={vi.fn()} onEnsureImageStorage={ensure} />
+    </QueryClientProvider>)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Создать изображение' }))
+    expect(await screen.findByText('Доступ к папке требуется подтвердить')).toBeInTheDocument()
+    expect(studioInvoke).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Создать изображение' }))
+    await waitFor(() => expect(studioInvoke).toHaveBeenCalledTimes(1))
+    expect(ensure.mock.invocationCallOrder[1]).toBeLessThan(vi.mocked(studioInvoke).mock.invocationCallOrder[0])
+  })
 })

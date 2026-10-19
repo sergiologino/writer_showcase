@@ -175,6 +175,24 @@ class AuthAndPostIntegrationTest {
         mockMvc.perform(get("/api/public/w/"                         + slug + "/posts/live"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("Live"));
+
+        MvcResult blogHtml = mockMvc.perform(get("/blog/" + slug))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(blogHtml.getResponse().getContentAsString())
+                .contains("<h1>" + slug + "</h1>")
+                .contains("href=\"/blog/" + slug + "/p/live\"")
+                .contains("window.__PUBLISHER_BOOTSTRAP__=");
+
+        MvcResult articleHtml = mockMvc.perform(get("/blog/" + slug + "/p/live"))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(articleHtml.getResponse().getContentAsString())
+                .contains("<h1>Live</h1>")
+                .contains("<p>Body</p>")
+                .contains("\"@type\":\"BlogPosting\"")
+                .contains("\"publishedAt\":\"20")
+                .contains("href=\"http://localhost/blog/" + slug + "/p/live\"");
     }
 
     @Test

@@ -1,4 +1,4 @@
-import { Link, Outlet, useNavigate } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ApiError, apiFetch, clearSession } from '../api/client'
 import type { MeResponse } from '../api/types'
@@ -9,6 +9,8 @@ import { UserAvatarMenu } from './UserAvatarMenu'
 
 export function AppShell() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const isEditorRoute = location.pathname.startsWith('/app/posts/')
 
   const me = useQuery({
     queryKey: ['me'],
@@ -45,7 +47,7 @@ export function AppShell() {
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
+        <div className={`mx-auto flex items-center justify-between gap-4 px-4 py-3 ${isEditorRoute ? 'max-w-[90rem]' : 'max-w-5xl'}`}>
           <div className="flex min-w-0 items-center gap-6">
             <PublisherWordmark to="/app/feed" size="md" />
             <nav className="hidden gap-4 text-sm text-[var(--muted)] sm:flex">
@@ -79,7 +81,7 @@ export function AppShell() {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-8">
+      <main className={`mx-auto px-4 py-6 sm:py-8 ${isEditorRoute ? 'max-w-[90rem]' : 'max-w-5xl'}`}>
         <Outlet />
       </main>
     </div>

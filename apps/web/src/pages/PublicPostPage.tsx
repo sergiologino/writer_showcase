@@ -8,6 +8,8 @@ import { PublicAuthorChip } from '../components/PublicAuthorChip'
 import { PublicSiteNav } from '../components/PublicSiteNav'
 import { PublicPostOwnerActions } from '../components/PublicPostOwnerActions'
 import { Seo } from '../components/Seo'
+import { StructuredData } from '../components/StructuredData'
+import { initialArticleData } from '../lib/publicBootstrap'
 
 export function PublicPostPage() {
   const { workspaceSlug, postSlug } = useParams<{ workspaceSlug: string; postSlug: string }>()
@@ -25,6 +27,7 @@ export function PublicPostPage() {
     queryKey: ['public-post', ws, ps],
     queryFn: () => fetchPublicPost(ws, ps),
     enabled: !!ws && !!ps,
+    initialData: () => initialArticleData(ws, ps),
   })
 
   const engQ = useQuery({
@@ -75,13 +78,14 @@ export function PublicPostPage() {
   }
 
   if (q.isLoading) {
-    return <p className="mx-auto max-w-2xl py-10 text-sm text-[var(--muted)]">Загрузка…</p>
+    return <p className="mx-auto max-w-3xl px-4 py-10 text-sm text-[var(--muted)]" role="status">Загрузка статьи…</p>
   }
 
   if (q.isError || !q.data) {
     return (
-      <div className="mx-auto max-w-2xl py-10">
-        <p className="text-sm text-red-600">Материал не найден</p>
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <Seo title="Материал не найден" canonicalPath={`/blog/${ws}/p/${ps}`} noIndex />
+        <p className="text-sm text-[var(--danger)]" role="alert">Материал не найден</p>
         <Link className="mt-4 inline-block text-sm text-[var(--accent)]" to={`/blog/${ws}`}>
           ← к ленте
         </Link>
@@ -91,9 +95,11 @@ export function PublicPostPage() {
 
   const post = q.data
   const eng = engQ.data
+  const articleUrl = new URL(`/blog/${ws}/p/${post.slug}`, window.location.origin).toString()
+  const firstImage = post.media?.find((media) => media.mimeType?.startsWith('image/'))
 
   return (
-    <article className="mx-auto max-w-2xl space-y-6 py-10">
+    <article className="mx-auto max-w-4xl space-y-7 px-4 py-6 sm:py-8 lg:py-10">
       <Seo
         title={post.title}
         description={post.excerpt || `Статья ${post.title} в публичном блоге ${ws}.`}
@@ -108,36 +114,52 @@ export function PublicPostPage() {
           .filter(Boolean)
           .join(', ')}
         canonicalPath={`/blog/${ws}/p/${post.slug}`}
-        image={post.media?.find((m) => m.mimeType?.startsWith('image/'))?.url ?? post.authorAvatarUrl}
+        image={firstImage?.url ?? post.authorAvatarUrl}
         type="article"
       />
+      <StructuredData value={{
+        '@context': 'https://schema.org',
+        '@type': 'BlogPosting',
+        headline: post.title,
+        mainEntityOfPage: articleUrl,
+        ...(post.excerpt ? { description: post.excerpt } : {}),
+        ...(post.publishedAt ? { datePublished: post.publishedAt } : {}),
+        ...(post.updatedAt ? { dateModified: post.updatedAt } : {}),
+        ...(post.authorDisplayName ? { author: { '@type': 'Person', name: post.authorDisplayName } } : {}),
+        ...(firstImage ? { image: new URL(resolveApiUrl(firstImage.url), window.location.origin).toString() } : {}),
+      }} />
       <PublicSiteNav />
-      <Link className="text-sm text-[var(--muted)] hover:text-[var(--accent)]" to={`/blog/${ws}`}>
+      <Link className="inline-block text-sm text-[var(--muted)] hover:text-[var(--accent)]" to={`/blog/${ws}`}>
         ← все материалы
       </Link>
-      <header className="space-y-2 border-b border-[var(--border)] pb-6">
+      <header className="mx-auto max-w-[72ch] space-y-4 border-b border-[var(--border)] pb-7">
+        {post.category ? <span className="ui-badge">{post.category.name}</span> : null}
+        <h1 className="font-editorial break-words text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-5xl">{post.title}</h1>
         {post.authorDisplayName ? (
-          <PublicAuthorChip name={post.authorDisplayName} avatarUrl={post.authorAvatarUrl} className="pb-1" />
+          <PublicAuthorChip name={post.authorDisplayName} avatarUrl={post.authorAvatarUrl} />
         ) : null}
-        <h1 className="text-3xl font-semibold tracking-tight">{post.title}</h1>
         {post.publishedAt ? (
-          <p className="text-xs text-[var(--muted)]">{new Date(post.publishedAt).toLocaleString()}</p>
+          <time className="block text-xs text-[var(--muted)]" dateTime={post.publishedAt}>
+            {new Date(post.publishedAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </time>
         ) : null}
       </header>
-      <PublicPostOwnerActions postId={post.id} authorId={post.authorId} workspaceSlug={ws}
-        title={post.title} openEditorAfter />
-      {post.excerpt ? <p className="text-lg text-[var(--muted)]">{post.excerpt}</p> : null}
+      <div className="mx-auto max-w-[72ch]">
+        <PublicPostOwnerActions postId={post.id} authorId={post.authorId} workspaceSlug={ws}
+          title={post.title} openEditorAfter />
+        {post.excerpt ? <p className="font-editorial mt-5 break-words text-lg leading-relaxed text-[var(--muted)]">{post.excerpt}</p> : null}
+      </div>
 
-      <div className="flex flex-wrap items-center gap-3 border-b border-[var(--border)] pb-4">
+      <div className="mx-auto flex max-w-[72ch] flex-wrap items-center gap-3 border-b border-[var(--border)] pb-4">
         {token ? (
           <button
             type="button"
             disabled={likeMut.isPending || engQ.isLoading}
             onClick={() => likeMut.mutate()}
-            className={`rounded-lg border px-3 py-1.5 text-sm ${
+            className={`ui-button text-sm ${
               eng?.likedByMe
                 ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
-                : 'border-[var(--border)] hover:bg-[var(--surface)]'
+                : 'ui-button--secondary'
             }`}
           >
             {eng?.likedByMe ? '♥ Нравится' : '♡ Нравится'}
@@ -154,7 +176,7 @@ export function PublicPostPage() {
         <button
           type="button"
           onClick={() => void sharePost()}
-          className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm hover:bg-[var(--surface)]"
+          className="ui-button ui-button--secondary"
         >
           Поделиться…
         </button>
@@ -169,17 +191,19 @@ export function PublicPostPage() {
       </div>
 
       {post.media?.length ? (
-        <div className="space-y-4">
+        <div className="mx-auto max-w-[72ch] space-y-4">
           {post.media.map((m) =>
             m.mimeType?.startsWith('image/') ? (
               <figure key={m.id} className="space-y-2">
                 <img
                   src={resolveApiUrl(m.url)}
                   alt={m.altText ?? ''}
-                  className="max-h-[480px] w-full rounded-lg object-contain"
+                  loading="lazy"
+                  decoding="async"
+                  className="max-h-[36rem] w-full rounded-[var(--radius-control)] object-contain"
                 />
                 {m.caption ? (
-                  <figcaption className="text-sm text-[var(--muted)]">{m.caption}</figcaption>
+                  <figcaption className="text-center text-sm text-[var(--muted)]">{m.caption}</figcaption>
                 ) : null}
               </figure>
             ) : (
@@ -198,12 +222,12 @@ export function PublicPostPage() {
         </div>
       ) : null}
       <div
-        className="space-y-4 leading-relaxed [&_a]:text-[var(--accent)] [&_p]:my-3"
+        className="article-prose min-w-0"
         dangerouslySetInnerHTML={{ __html: post.bodyHtml ?? '' }}
       />
 
-      <section className="space-y-4 border-t border-[var(--border)] pt-6">
-        <h2 className="text-lg font-medium">Комментарии</h2>
+      <section className="mx-auto max-w-[72ch] space-y-4 border-t border-[var(--border)] pt-7">
+        <h2 className="font-editorial text-xl font-semibold">Комментарии</h2>
         {engQ.isLoading ? (
           <p className="text-sm text-[var(--muted)]">Загрузка…</p>
         ) : eng ? (
@@ -212,7 +236,7 @@ export function PublicPostPage() {
               <li className="text-[var(--muted)]">Пока нет комментариев.</li>
             ) : (
               eng.comments.map((c) => (
-                <li key={c.id} className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3">
+                <li key={c.id} className="ui-card p-4">
                   <p className="font-medium text-[var(--text)]">{c.authorDisplayName}</p>
                   <p className="mt-1 whitespace-pre-wrap text-[var(--text)]">{c.body}</p>
                   <p className="mt-2 text-xs text-[var(--muted)]">
@@ -242,19 +266,19 @@ export function PublicPostPage() {
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 rows={3}
-                className="mt-1 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                className="ui-field mt-1 w-full text-sm"
                 maxLength={8000}
               />
             </label>
             <button
               type="submit"
               disabled={commentMut.isPending || !commentText.trim()}
-              className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--accent-hover)] disabled:opacity-50"
+              className="ui-button ui-button--accent"
             >
               {commentMut.isPending ? 'Отправка…' : 'Отправить'}
             </button>
             {commentMut.isError ? (
-              <p className="text-sm text-red-600">Не удалось отправить комментарий</p>
+              <p className="text-sm text-[var(--danger)]" role="alert">Не удалось отправить комментарий</p>
             ) : null}
           </form>
         ) : (

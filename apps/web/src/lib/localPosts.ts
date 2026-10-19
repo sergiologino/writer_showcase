@@ -43,9 +43,12 @@ export interface LocalPost {
 
 interface DirectoryHandle {
   name: string
+  isSameEntry(other: DirectoryHandle): Promise<boolean>
+  resolve(other: DirectoryHandle): Promise<string[] | null>
   queryPermission(options: { mode: 'readwrite' }): Promise<PermissionState>
   requestPermission(options: { mode: 'readwrite' }): Promise<PermissionState>
   getDirectoryHandle(name: string, options?: { create: boolean }): Promise<DirectoryHandle>
+  removeEntry(name: string, options?: { recursive: boolean }): Promise<void>
   getFileHandle(name: string, options?: { create: boolean }): Promise<{
     createWritable(): Promise<{ write(data: string | Blob): Promise<void>; close(): Promise<void> }>
     getFile(): Promise<File>
@@ -112,6 +115,11 @@ export function folderPickerAvailable(): boolean {
 }
 
 export async function choosePostFolder(): Promise<string> {
+  const saved = await getPostFolder()
+  if (saved) {
+    await ensurePostFolderWriteAccess()
+    return saved.name
+  }
   const picker = (window as PickerWindow).showDirectoryPicker
   if (!picker) throw new Error('Выбор папки не поддерживается этим браузером.')
   const folder = await picker()
@@ -124,6 +132,108 @@ export async function choosePostFolder(): Promise<string> {
 
 export async function getPostFolder(): Promise<DirectoryHandle | undefined> {
   return read<DirectoryHandle>(SETTINGS, FOLDER_KEY)
+}
+
+export async function postFolderStatus(): Promise<{ name: string | null; permission: PermissionState | null }> {
+  const folder = await getPostFolder()
+  if (!folder) return { name: null, permission: null }
+  return { name: folder.name, permission: await folder.queryPermission({ mode: 'readwrite' }) }
+}
+
+export async function ensurePostFolderWriteAccess(): Promise<string> {
+  const folder = await getPostFolder()
+  if (!folder) throw new Error('Сначала выберите папку материалов в профиле.')
+  const mode = { mode: 'readwrite' as const }
+  if (await folder.queryPermission(mode) !== 'granted' && await folder.requestPermission(mode) !== 'granted') {
+    throw new Error('Браузер не предоставил доступ к сохранённой папке материалов.')
+  }
+  return folder.name
+}
+
+async function copyDirectory(source: DirectoryHandle, target: DirectoryHandle): Promise<void> {
+  for await (const entry of source.values()) {
+    if (entry.kind === 'directory') {
+      const childSource = await source.getDirectoryHandle(entry.name)
+      const childTarget = await target.getDirectoryHandle(entry.name, { create: true })
+      await copyDirectory(childSource, childTarget)
+    } else if (entry.kind === 'file') {
+      const file = await (await source.getFileHandle(entry.name)).getFile()
+      await writeFile(target, entry.name, file)
+      const copied = await (await target.getFileHandle(entry.name)).getFile()
+      if (!await filesMatch(file, copied)) throw new Error(`Не удалось проверить копию файла ${entry.name}.`)
+    }
+  }
+}
+
+async function filesMatch(source: File, target: File): Promise<boolean> {
+  if (source.size !== target.size) return false
+  const chunkSize = 1024 * 1024
+  for (let offset = 0; offset < source.size; offset += chunkSize) {
+    const [left, right] = await Promise.all([
+      source.slice(offset, offset + chunkSize).arrayBuffer(),
+      target.slice(offset, offset + chunkSize).arrayBuffer(),
+    ])
+    const a = new Uint8Array(left)
+    const b = new Uint8Array(right)
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  }
+  return true
+}
+
+/** Copy first, then switch the saved folder; never overwrite an existing archive. */
+export async function movePostArchive(sourceRoot: DirectoryHandle, targetRoot: DirectoryHandle): Promise<boolean> {
+  if (await sourceRoot.isSameEntry(targetRoot)) return false
+  let source: DirectoryHandle
+  try {
+    source = await sourceRoot.getDirectoryHandle('publisher')
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'NotFoundError') return false
+    throw error
+  }
+  if (await source.resolve(targetRoot) !== null) {
+    throw new Error('Новая папка не должна находиться внутри текущего архива publisher.')
+  }
+  try {
+    await targetRoot.getDirectoryHandle('publisher')
+    throw new Error('В новом месте уже есть папка publisher. Выберите папку без существующего архива.')
+  } catch (error) {
+    if (!(error instanceof DOMException) || error.name !== 'NotFoundError') throw error
+  }
+  const target = await targetRoot.getDirectoryHandle('publisher', { create: true })
+  try {
+    await copyDirectory(source, target)
+  } catch (error) {
+    await targetRoot.removeEntry('publisher', { recursive: true }).catch(() => {})
+    throw error
+  }
+  return true
+}
+
+export async function changePostFolder(): Promise<{ name: string; previousRetained: boolean }> {
+  const picker = (window as PickerWindow).showDirectoryPicker
+  if (!picker) throw new Error('Выбор папки не поддерживается этим браузером.')
+  const previous = await getPostFolder()
+  if (previous && await previous.queryPermission({ mode: 'readwrite' }) !== 'granted') {
+    throw new Error('Сначала восстановите доступ к старой папке, затем повторите перенос.')
+  }
+  const next = await picker()
+  if (await next.requestPermission({ mode: 'readwrite' }) !== 'granted') {
+    throw new Error('Нет разрешения на запись в новую папку.')
+  }
+  const copied = previous ? await movePostArchive(previous, next) : false
+  try {
+    await write(SETTINGS, next, FOLDER_KEY)
+  } catch (error) {
+    if (copied) await next.removeEntry('publisher', { recursive: true }).catch(() => {})
+    throw error
+  }
+  if (!previous || !copied) return { name: next.name, previousRetained: false }
+  try {
+    await previous.removeEntry('publisher', { recursive: true })
+    return { name: next.name, previousRetained: false }
+  } catch {
+    return { name: next.name, previousRetained: true }
+  }
 }
 
 function extension(name: string, mimeType: string | null): string {
@@ -167,6 +277,7 @@ export async function writeSelectedMedia(root: DirectoryHandle, localId: string,
 }
 
 export async function saveSelectedMedia(localId: string, file: File): Promise<LocalMedia> {
+  await ensurePostFolderWriteAccess()
   return writeSelectedMedia(await requireFolder(), localId, file)
 }
 

@@ -6,6 +6,7 @@ import { LocalStoragePage } from './LocalStoragePage'
 vi.mock('../lib/localPosts', () => ({
   folderPickerAvailable: vi.fn().mockReturnValue(true),
   choosePostFolder: vi.fn(),
+  postFolderStatus: vi.fn().mockResolvedValue({ name: 'Documents', permission: 'granted' }),
   inspectLocalArchive: vi.fn().mockResolvedValue({
     folderName: 'Documents',
     posts: [{

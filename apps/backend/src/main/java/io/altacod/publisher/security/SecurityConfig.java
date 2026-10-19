@@ -73,7 +73,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
-                        .requestMatchers("/robots.txt", "/sitemap.xml").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/", "/blog/**", "/robots.txt", "/sitemap.xml").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/public/**").permitAll()
                         .requestMatchers("/api/engagement/**").authenticated()

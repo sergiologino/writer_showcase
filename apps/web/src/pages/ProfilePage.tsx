@@ -11,6 +11,7 @@ import { ApiError, apiFetch, resolveApiUrl } from '../api/client'
 import { uploadMedia } from '../api/media'
 import type { MeResponse, UpdateProfilePayload } from '../api/types'
 import { AiAdminSection } from '../components/AiAdminSection'
+import { LocalFolderSettings } from '../components/LocalFolderSettings'
 import { Seo } from '../components/Seo'
 import { applyTheme, type Theme } from '../lib/theme'
 
@@ -292,6 +293,7 @@ export function ProfilePage() {
         </p>
       </div>
 
+      <LocalFolderSettings />
       <ProfilePhotosSection me={profile} />
 
       <form
